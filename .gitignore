@@ -1,0 +1,15 @@
+node_modules/
+dist/
+dist-electron/
+.env.local
+.env.*.local
+*.jks
+*.keystore
+android/app/build/
+android/.gradle/
+android/local.properties
+ios/Pods/
+.DS_Store
+*.log
+.vite/
+coverage/

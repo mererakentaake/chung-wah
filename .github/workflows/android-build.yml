@@ -1,0 +1,200 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    env:
+      HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Write Firebase environment config
+        env:
+          FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+        run: |
+          printf 'VITE_FIREBASE_API_KEY=%s\n' "${FIREBASE_API_KEY}" > .env.local
+          printf 'VITE_FIREBASE_AUTH_DOMAIN=%s\n' "${FIREBASE_AUTH_DOMAIN}" >> .env.local
+          printf 'VITE_FIREBASE_PROJECT_ID=%s\n' "${FIREBASE_PROJECT_ID}" >> .env.local
+          printf 'VITE_FIREBASE_STORAGE_BUCKET=%s\n' "${FIREBASE_STORAGE_BUCKET}" >> .env.local
+          printf 'VITE_FIREBASE_MESSAGING_SENDER_ID=%s\n' "${FIREBASE_MESSAGING_SENDER_ID}" >> .env.local
+          printf 'VITE_FIREBASE_APP_ID=%s\n' "${FIREBASE_APP_ID}" >> .env.local
+          printf 'VITE_FIREBASE_MEASUREMENT_ID=%s\n' "${FIREBASE_MEASUREMENT_ID}" >> .env.local
+          echo "--- .env.local written ---"
+          cat .env.local
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Add Capacitor Android platform
+        run: npx cap add android || echo "Android platform already exists"
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      # ── Fix "Unsafe app blocked" — bump SDK versions ──────────────────────
+      # Google Play Protect blocks apps targeting Android API < 31.
+      # Capacitor sometimes defaults to older values; force them here.
+      - name: Fix SDK target versions
+        run: |
+          VARS="android/variables.gradle"
+          if [ -f "$VARS" ]; then
+            sed -i 's/minSdkVersion\s*=\s*[0-9]*/minSdkVersion = 22/'       "$VARS"
+            sed -i 's/compileSdkVersion\s*=\s*[0-9]*/compileSdkVersion = 34/' "$VARS"
+            sed -i 's/targetSdkVersion\s*=\s*[0-9]*/targetSdkVersion = 34/'   "$VARS"
+            echo "--- variables.gradle after patch ---"
+            cat "$VARS"
+          else
+            echo "variables.gradle not found — patching app/build.gradle directly"
+            sed -i 's/targetSdk\s*[0-9]*/targetSdk 34/'   android/app/build.gradle
+            sed -i 's/compileSdk\s*[0-9]*/compileSdk 34/' android/app/build.gradle
+            sed -i 's/minSdk\s*[0-9]*/minSdk 22/'         android/app/build.gradle
+          fi
+
+      # ── App icon from school crest ────────────────────────────────────────
+      # Place your school crest as  assets/logo.png  in the repo root.
+      # ImageMagick resizes it to every required Android mipmap density.
+      - name: Install ImageMagick
+        run: sudo apt-get install -y imagemagick
+
+      - name: Generate app icons from school crest
+        run: |
+          LOGO="public/app-icon.png"
+          if [ ! -f "$LOGO" ]; then
+            echo "⚠️  assets/logo.png not found — skipping icon generation"
+            exit 0
+          fi
+          declare -A SIZES=(
+            [mipmap-mdpi]=48
+            [mipmap-hdpi]=72
+            [mipmap-xhdpi]=96
+            [mipmap-xxhdpi]=144
+            [mipmap-xxxhdpi]=192
+          )
+          for DIR in "${!SIZES[@]}"; do
+            SIZE=${SIZES[$DIR]}
+            DEST="android/app/src/main/res/$DIR"
+            mkdir -p "$DEST"
+            # Standard launcher icon
+            convert "$LOGO" -resize "${SIZE}x${SIZE}" "$DEST/ic_launcher.png"
+            # Round icon (same image — Android clips it to circle)
+            convert "$LOGO" -resize "${SIZE}x${SIZE}" "$DEST/ic_launcher_round.png"
+            # Adaptive icon foreground (with padding so the crest isn't cropped)
+            PADDED=$(echo "$SIZE * 4 / 3" | bc)
+            convert "$LOGO" -resize "${SIZE}x${SIZE}" -gravity center \
+              -background none -extent "${PADDED}x${PADDED}" \
+              "$DEST/ic_launcher_foreground.png"
+            echo "✅  $DIR → ${SIZE}px"
+          done
+
+      # ── Splash screen from school crest ───────────────────────────────────
+      # Creates a navy (#0A0F2C) 2048×2048 splash with the crest centred at 60%.
+      - name: Generate splash screen
+        run: |
+          LOGO="public/app-icon.png"
+          if [ ! -f "$LOGO" ]; then
+            echo "⚠️  assets/logo.png not found — skipping splash generation"
+            exit 0
+          fi
+          SPLASH_DIR="android/app/src/main/res/drawable"
+          mkdir -p "$SPLASH_DIR"
+
+          # Crest at ~60% of canvas width = 1229 px on a 2048 canvas
+          convert -size 2048x2048 xc:"#0A0F2C" \
+            \( "$LOGO" -resize 1229x1229 \) \
+            -gravity center -composite \
+            "$SPLASH_DIR/splash.png"
+
+          echo "✅  Splash screen generated"
+
+      # ── Gradle build ──────────────────────────────────────────────────────
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Build debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon
+
+      # ── Rename APK to chung-wah.apk ───────────────────────────────────────
+      - name: Rename debug APK
+        run: |
+          mv android/app/build/outputs/apk/debug/app-debug.apk \
+             android/app/build/outputs/apk/debug/chung-wah.apk
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: chung-wah-debug-apk
+          path: android/app/build/outputs/apk/debug/chung-wah.apk
+          retention-days: 30
+
+      # ── Release build ─────────────────────────────────────────────────────
+      - name: Decode release keystore
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode \
+            > "$GITHUB_WORKSPACE/android/app/release-key.jks"
+
+      - name: Build release APK
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          cd android
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android/app/release-key.jks" \
+            -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD }}" \
+            -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
+            -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}" \
+            --no-daemon
+
+      - name: Rename release APK
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          mv android/app/build/outputs/apk/release/app-release.apk \
+             android/app/build/outputs/apk/release/chung-wah.apk
+
+      - name: Upload release APK
+        if: env.HAS_KEYSTORE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: chung-wah-release-apk
+          path: android/app/build/outputs/apk/release/chung-wah.apk
+          retention-days: 90
