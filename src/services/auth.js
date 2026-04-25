@@ -12,10 +12,9 @@ import {
 import { auth, db } from './firebase';
 import { USER_TYPES } from '../utils/constants';
 
-// ─── DEBUG LOGGER ────────────────────────────────────────────────────────────
+// ─── DEBUG LOGGER ─────────────────────────────────────────────────────────────
 const DEBUG_KEY = '__auth_debug_log__';
 const stamp = () => new Date().toLocaleTimeString();
-
 function dlog(msg) {
   console.log(`[AUTH-DEBUG] ${msg}`);
   try {
@@ -24,13 +23,10 @@ function dlog(msg) {
     sessionStorage.setItem(DEBUG_KEY, JSON.stringify(existing.slice(-60)));
   } catch (_) {}
 }
-
 export function getDebugLog() {
-  try {
-    return JSON.parse(sessionStorage.getItem(DEBUG_KEY) || '[]');
-  } catch (_) { return []; }
+  try { return JSON.parse(sessionStorage.getItem(DEBUG_KEY) || '[]'); }
+  catch (_) { return []; }
 }
-
 export function clearDebugLog() {
   try { sessionStorage.removeItem(DEBUG_KEY); } catch (_) {}
 }
@@ -110,7 +106,8 @@ export const registerUser = async ({ email, password, schoolCode, userType }) =>
 
 export const loginAdmin = async ({ email, password, schoolCode }) => {
   const code = schoolCode.toUpperCase().trim();
-  dlog(`loginAdmin START email=${email} schoolCode="${code}"`);
+  const emailNorm = email.toLowerCase().trim();
+  dlog(`loginAdmin START email=${emailNorm} schoolCode="${code}"`);
 
   let credential;
   try {
@@ -121,37 +118,38 @@ export const loginAdmin = async ({ email, password, schoolCode }) => {
     throw err;
   }
 
-  const uid = credential.user.uid;
-  const path = `schools/${code}/admins/${uid}`;
-  dlog(`loginAdmin Firestore path="${path}"`);
+  // Query by email — no UID document ID matching needed.
+  // This works regardless of what document ID was used when creating the admin doc.
+  const adminsRef = collection(db, 'schools', code, 'admins');
+  const q = query(adminsRef, where('email', '==', emailNorm));
+  dlog(`loginAdmin querying schools/${code}/admins where email==${emailNorm}`);
 
   let adminSnap;
   try {
-    adminSnap = await getDocFromServer(doc(db, 'schools', code, 'admins', uid));
-    dlog(`loginAdmin doc exists=${adminSnap.exists()}`);
-    if (adminSnap.exists()) {
-      dlog(`loginAdmin doc data=${JSON.stringify(adminSnap.data())}`);
-    }
+    adminSnap = await getDocs(q);
+    dlog(`loginAdmin query returned ${adminSnap.size} doc(s)`);
   } catch (err) {
-    dlog(`loginAdmin Firestore READ FAILED code=${err.code} msg=${err.message}`);
+    dlog(`loginAdmin Firestore QUERY FAILED code=${err.code} msg=${err.message}`);
     await signOut(auth);
     throw err;
   }
 
-  if (!adminSnap.exists()) {
-    dlog(`loginAdmin REJECTED — doc not found at "${path}"`);
+  if (adminSnap.empty) {
+    dlog(`loginAdmin REJECTED — no admin doc found with email=${emailNorm} in schools/${code}/admins`);
     await signOut(auth);
     throw new Error('NOT_AN_ADMIN');
   }
 
-  await saveSession(uid, {
+  dlog(`loginAdmin admin doc found: ${JSON.stringify(adminSnap.docs[0].data())}`);
+
+  await saveSession(credential.user.uid, {
     userType: USER_TYPES.ADMIN,
     schoolCode: code,
-    userId: uid,
+    userId: credential.user.uid,
   });
 
   dlog('loginAdmin SUCCESS');
-  return { user: credential.user, adminData: adminSnap.data() };
+  return { user: credential.user, adminData: adminSnap.docs[0].data() };
 };
 
 export const logoutUser = async () => {
