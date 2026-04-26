@@ -30,7 +30,7 @@ function ChatList({ users, onSelect }) {
       <div className="px-4 pt-3 pb-2">
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-          <input className="field pl-9 text-sm py-2.5" placeholder="Search teachers..."
+          <input className="field-dark pl-9 text-sm py-2.5" placeholder="Search teachers..."
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
@@ -126,7 +126,7 @@ function MessagingScreen({ chatUser, chatId, onBack }) {
       {/* Input */}
       <div className="px-4 py-3 pb-safe border-t border-white/8 flex items-center gap-3">
         <input
-          className="field flex-1 py-3 text-sm"
+          className="field-dark flex-1 py-3 text-sm"
           placeholder="Type a message..."
           value={text}
           onChange={e => setText(e.target.value)}
