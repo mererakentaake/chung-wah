@@ -5,11 +5,10 @@
 @tailwind utilities;
 
 :root {
-  --navy-900: #0A0F2C;
   --gold-500: #F9C61F;
   --coral-500: #E84545;
-  --card-bg: rgba(255,255,255,0.06);
-  --card-border: rgba(255,255,255,0.1);
+  --card-bg: #ffffff;
+  --card-border: rgba(0,0,0,0.07);
 }
 
 * {
@@ -28,7 +27,8 @@ body {
   min-height: 100vh;
   min-height: -webkit-fill-available;
   overflow-x: hidden;
-  background: #0A0F2C;
+  background: #f4f6fb;
+  color: #1a1f36;
 }
 
 #root {
@@ -39,27 +39,24 @@ body {
 /* ── Scrollbar ─────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(249,198,31,0.3); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(249,198,31,0.5); }
+::-webkit-scrollbar-thumb { background: rgba(249,198,31,0.4); border-radius: 99px; }
 
 /* ── Selection ─────────────────────────────────────── */
-::selection { background: rgba(249,198,31,0.25); color: #fff; }
+::selection { background: rgba(249,198,31,0.3); color: #1a1f36; }
 
-/* ── Glass card ─────────────────────────────────────── */
+/* ── White card ─────────────────────────────────────── */
 .glass-card {
-  background: rgba(255,255,255,0.05);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.07);
   border-radius: 20px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
 }
 
 .glass-card-light {
-  background: rgba(255,255,255,0.95);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(0,0,0,0.06);
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.07);
   border-radius: 20px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
 }
 
 /* ── Gradient text ─────────────────────────────────── */
@@ -77,13 +74,12 @@ body {
   background-clip: text;
 }
 
-/* ── Mesh background ───────────────────────────────── */
+/* ── Light mesh background ─────────────────────────── */
 .mesh-bg {
-  background: #0A0F2C;
+  background: #f4f6fb;
   background-image:
-    radial-gradient(at 20% 20%, rgba(249,198,31,0.12) 0px, transparent 50%),
-    radial-gradient(at 80% 80%, rgba(232,69,69,0.08) 0px, transparent 50%),
-    radial-gradient(at 50% 50%, rgba(99,102,241,0.06) 0px, transparent 60%);
+    radial-gradient(at 20% 20%, rgba(249,198,31,0.1) 0px, transparent 50%),
+    radial-gradient(at 80% 80%, rgba(232,69,69,0.06) 0px, transparent 50%);
 }
 
 /* ── Bottom nav safe area ──────────────────────────── */
@@ -102,16 +98,14 @@ body {
   transform: translateY(-1px);
   box-shadow: 0 8px 24px rgba(249,198,31,0.35);
 }
-.btn-gradient:active {
-  transform: translateY(0);
-}
+.btn-gradient:active { transform: translateY(0); }
 
 /* ── Skeleton loading ──────────────────────────────── */
 .skeleton {
   background: linear-gradient(90deg,
-    rgba(255,255,255,0.05) 25%,
-    rgba(255,255,255,0.1) 50%,
-    rgba(255,255,255,0.05) 75%
+    rgba(0,0,0,0.05) 25%,
+    rgba(0,0,0,0.09) 50%,
+    rgba(0,0,0,0.05) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
@@ -133,36 +127,15 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Dark/Light mode ───────────────────────────────── */
-.dark { color-scheme: dark; }
-
-.light-surface {
-  background: #f8fafc;
-}
-.dark .light-surface {
-  background: #0f1530;
-}
-
 /* ── Form inputs ───────────────────────────────────── */
 .field {
-  @apply w-full px-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-white
-    placeholder-white/30 focus:outline-none focus:border-gold-500/60 focus:ring-2
-    focus:ring-gold-500/20 transition-all duration-200 font-body;
-}
-
-.field-light {
-  @apply w-full px-4 py-3 rounded-2xl bg-black/5 border border-black/10 text-gray-800
-    placeholder-gray-400 focus:outline-none focus:border-yellow-400/60 focus:ring-2
+  @apply w-full px-4 py-3 rounded-2xl bg-gray-100 border border-gray-200 text-gray-800
+    placeholder-gray-400 focus:outline-none focus:border-yellow-400 focus:ring-2
     focus:ring-yellow-400/20 transition-all duration-200 font-body;
 }
 
-/* ── Noisy texture overlay ─────────────────────────── */
-.noise::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-  border-radius: inherit;
-  pointer-events: none;
-  opacity: 0.4;
+.field-light {
+  @apply w-full px-4 py-3 rounded-2xl bg-gray-100 border border-gray-200 text-gray-800
+    placeholder-gray-400 focus:outline-none focus:border-yellow-400 focus:ring-2
+    focus:ring-yellow-400/20 transition-all duration-200 font-body;
 }
