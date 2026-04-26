@@ -18,6 +18,10 @@ export function AuthProvider({ children }) {
     setUserType(type);
     setSchoolCode(code);
     setUserId(uid);
+    // Persist to localStorage so firestore.js helper functions can read them.
+    // firestore.js reads schoolCode/userId via localStorage getters, not React state.
+    localStorage.setItem('schoolCode', code || '');
+    localStorage.setItem('userId', uid || '');
     setTimeout(() => { authSetDirectly.current = false; }, 3000);
   };
 
@@ -29,6 +33,8 @@ export function AuthProvider({ children }) {
         setUserType(USER_TYPES.UNKNOWN);
         setSchoolCode('');
         setUserId('');
+        localStorage.removeItem('schoolCode');
+        localStorage.removeItem('userId');
         setLoading(false);
         return;
       }
@@ -54,6 +60,9 @@ export function AuthProvider({ children }) {
             setUserType(type);
             setSchoolCode(code || '');
             setUserId(uid || firebaseUser.uid);
+            // Keep localStorage in sync so firestore.js functions always have valid values
+            localStorage.setItem('schoolCode', code || '');
+            localStorage.setItem('userId', uid || firebaseUser.uid);
             setLoading(false);
             return;
           }
@@ -63,6 +72,8 @@ export function AuthProvider({ children }) {
       setUserType(USER_TYPES.UNKNOWN);
       setSchoolCode('');
       setUserId('');
+      localStorage.removeItem('schoolCode');
+      localStorage.removeItem('userId');
       setLoading(false);
     });
     return unsub;
