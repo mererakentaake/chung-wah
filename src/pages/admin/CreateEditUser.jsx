@@ -192,9 +192,14 @@ export default function CreateEditUser() {
           {/* Info note */}
           {!isEdit && (
             <div className="p-3.5 rounded-xl bg-white/5 border border-white/10">
-              <p className="text-white/50 text-xs font-body leading-relaxed">
-                ℹ️ This pre-registers the {label.toLowerCase()} in the system. They will then download the app
-                and register using this exact email address to activate their account.
+              <p className="text-white/60 text-xs font-body leading-relaxed font-semibold mb-1">
+                ℹ️ How activation works
+              </p>
+              <p className="text-white/45 text-xs font-body leading-relaxed">
+                This pre-registers the {label.toLowerCase()} in the system. They must then open the app,
+                select the <span className="text-white/70 font-semibold">"{isStudent ? 'Student' : 'Parent / Teacher'}"</span> tab,
+                and tap <span className="text-yellow-400 font-semibold">"Register"</span> (not Sign In)
+                using this exact email address to set their password and activate their account.
               </p>
             </div>
           )}
@@ -230,7 +235,7 @@ function Field({ label, value, onChange, placeholder, type = 'text', disabled = 
     <div>
       <label className="text-white/60 text-xs font-body font-medium mb-1.5 block">{label}</label>
       <input
-        className={`field ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        className={`field-dark ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         type={type}
         value={value || ''}
         onChange={onChange}
