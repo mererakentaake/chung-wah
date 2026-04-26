@@ -7,7 +7,7 @@ import {
   onAuthStateChanged,
 } from 'firebase/auth';
 import {
-  doc, getDocFromServer, getDocsFromServer, getDocs,
+  doc, getDoc, getDocs, getDocFromServer, getDocsFromServer,
   collection, query, where, setDoc
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -32,6 +32,10 @@ export function clearDebugLog() {
   try { sessionStorage.removeItem(DEBUG_KEY); } catch (_) {}
 }
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Log the actual Firebase project being used on startup
+dlog(`FIREBASE PROJECT_ID env = "${import.meta.env.VITE_FIREBASE_PROJECT_ID}"`);
+dlog(`FIREBASE AUTH_DOMAIN env = "${import.meta.env.VITE_FIREBASE_AUTH_DOMAIN}"`);
 
 export const saveSession = async (uid, { userType, schoolCode, userId }) => {
   dlog(`saveSession uid=${uid} type=${userType} school=${schoolCode}`);
@@ -109,6 +113,7 @@ export const loginAdmin = async ({ email, password, schoolCode }) => {
   const code = schoolCode.toUpperCase().trim();
   const emailNorm = email.toLowerCase().trim();
   dlog(`loginAdmin START email=${emailNorm} schoolCode="${code}"`);
+  dlog(`loginAdmin Firestore app projectId="${db.app.options.projectId}"`);
 
   let credential;
   try {
@@ -121,41 +126,50 @@ export const loginAdmin = async ({ email, password, schoolCode }) => {
 
   const uid = credential.user.uid;
 
-  // First try: direct UID doc lookup from server (fastest)
+  // Try 1: direct UID doc — no cache
   try {
-    dlog(`loginAdmin trying direct UID lookup: schools/${code}/admins/${uid}`);
     const directSnap = await getDocFromServer(doc(db, 'schools', code, 'admins', uid));
-    dlog(`loginAdmin direct lookup exists=${directSnap.exists()}`);
+    dlog(`loginAdmin UID lookup exists=${directSnap.exists()}`);
     if (directSnap.exists()) {
       await saveSession(uid, { userType: USER_TYPES.ADMIN, schoolCode: code, userId: uid });
-      dlog('loginAdmin SUCCESS via UID lookup');
+      dlog('loginAdmin SUCCESS via UID');
       return { user: credential.user, adminData: directSnap.data() };
     }
   } catch (err) {
-    dlog(`loginAdmin direct UID lookup error: ${err.message}`);
+    dlog(`loginAdmin UID lookup ERROR: ${err.code} — ${err.message}`);
   }
 
-  // Second try: query by email — forces server read, bypasses local cache
+  // Try 2: email query — no cache
   try {
-    dlog(`loginAdmin trying email query from server: schools/${code}/admins where email==${emailNorm}`);
     const adminsRef = collection(db, 'schools', code, 'admins');
     const q = query(adminsRef, where('email', '==', emailNorm));
     const adminSnap = await getDocsFromServer(q);
     dlog(`loginAdmin email query returned ${adminSnap.size} doc(s)`);
-
     if (!adminSnap.empty) {
-      dlog(`loginAdmin admin doc data: ${JSON.stringify(adminSnap.docs[0].data())}`);
       await saveSession(uid, { userType: USER_TYPES.ADMIN, schoolCode: code, userId: uid });
       dlog('loginAdmin SUCCESS via email query');
       return { user: credential.user, adminData: adminSnap.docs[0].data() };
     }
   } catch (err) {
-    dlog(`loginAdmin email query error: ${err.code} — ${err.message}`);
+    dlog(`loginAdmin email query ERROR: ${err.code} — ${err.message}`);
     await signOut(auth);
     throw err;
   }
 
-  dlog(`loginAdmin REJECTED — not found by UID or email in schools/${code}/admins`);
+  // Try 3: plain getDoc (cached) as last resort
+  try {
+    const cachedSnap = await getDoc(doc(db, 'schools', code, 'admins', uid));
+    dlog(`loginAdmin cached getDoc exists=${cachedSnap.exists()}`);
+    if (cachedSnap.exists()) {
+      await saveSession(uid, { userType: USER_TYPES.ADMIN, schoolCode: code, userId: uid });
+      dlog('loginAdmin SUCCESS via cached getDoc');
+      return { user: credential.user, adminData: cachedSnap.data() };
+    }
+  } catch (err) {
+    dlog(`loginAdmin cached getDoc ERROR: ${err.code} — ${err.message}`);
+  }
+
+  dlog(`loginAdmin REJECTED — not found in schools/${code}/admins`);
   await signOut(auth);
   throw new Error('NOT_AN_ADMIN');
 };
