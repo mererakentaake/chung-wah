@@ -44,14 +44,15 @@ body {
 /* ── Selection ─────────────────────────────────────── */
 ::selection { background: rgba(249,198,31,0.3); color: #1a1f36; }
 
-/* ── White card ─────────────────────────────────────── */
+/* ── Dark glass card (for dark/mesh-bg pages) ───────── */
 .glass-card {
-  background: #ffffff;
-  border: 1px solid rgba(0,0,0,0.07);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.09);
   border-radius: 20px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.28);
 }
 
+/* ── White card (for explicitly light pages) ─────────── */
 .glass-card-light {
   background: #ffffff;
   border: 1px solid rgba(0,0,0,0.07);
@@ -74,12 +75,12 @@ body {
   background-clip: text;
 }
 
-/* ── Light mesh background ─────────────────────────── */
+/* ── Dark mesh background ──────────────────────────── */
 .mesh-bg {
-  background: #f4f6fb;
+  background: #0A0F2C;
   background-image:
-    radial-gradient(at 20% 20%, rgba(249,198,31,0.1) 0px, transparent 50%),
-    radial-gradient(at 80% 80%, rgba(232,69,69,0.06) 0px, transparent 50%);
+    radial-gradient(at 20% 20%, rgba(249,198,31,0.08) 0px, transparent 50%),
+    radial-gradient(at 80% 80%, rgba(232,69,69,0.05) 0px, transparent 50%);
 }
 
 /* ── Bottom nav safe area ──────────────────────────── */
@@ -127,11 +128,20 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Form inputs ───────────────────────────────────── */
+/* ── Form inputs (light bg pages: Login, Admin Dashboard) ─── */
 .field {
   @apply w-full px-4 py-3 rounded-2xl bg-gray-100 border border-gray-200 text-gray-800
     placeholder-gray-400 focus:outline-none focus:border-yellow-400 focus:ring-2
     focus:ring-yellow-400/20 transition-all duration-200 font-body;
+}
+
+/* ── Form inputs (dark bg / mesh-bg pages) ─────────────── */
+.field-dark {
+  @apply w-full px-4 py-3 rounded-2xl border text-white
+    placeholder-white/30 focus:outline-none focus:border-yellow-400 focus:ring-2
+    focus:ring-yellow-400/20 transition-all duration-200 font-body;
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.12);
 }
 
 .field-light {
