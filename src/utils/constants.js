@@ -34,6 +34,8 @@ export const ROUTES = {
   EXAMS: '/exams',
   TRANSPORTATION: '/transportation',
   PARENTING: '/parenting',
+  STUDENT_REPORTS: '/student-reports',
+  LINK_GUARDIAN: '/link-guardian',
   // Admin routes
   ADMIN_DASHBOARD: '/admin',
   ADMIN_STUDENTS: '/admin/students',
@@ -52,3 +54,8 @@ export const STRINGS = {
   parents: 'Parents',
   parentWelcome: "Stay in touch with your child's teachers and school updates.",
 };
+
+export const TITLES = ['Mr', 'Mrs', 'Miss'];
+export const GENDERS = ['Male', 'Female', 'Other'];
+export const RELATIONSHIP_TYPES = ['Parent', 'Guardian'];
+export const REPORT_TYPES = ['Marks / Assessment', 'Behaviour', 'Performance', 'General Improvement'];
