@@ -86,7 +86,7 @@ export default function ManageStudents() {
         <div className="relative">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
           <input
-            className="field pl-10"
+            className="field-dark pl-10"
             placeholder="Search by name, email, class…"
             value={search}
             onChange={e => setSearch(e.target.value)}
