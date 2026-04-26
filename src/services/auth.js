@@ -7,7 +7,8 @@ import {
   onAuthStateChanged,
 } from 'firebase/auth';
 import {
-  doc, getDocFromServer, getDocs, collection, query, where, setDoc
+  doc, getDocFromServer, getDocsFromServer, getDocs,
+  collection, query, where, setDoc
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { USER_TYPES } from '../utils/constants';
@@ -118,38 +119,45 @@ export const loginAdmin = async ({ email, password, schoolCode }) => {
     throw err;
   }
 
-  // Query by email — no UID document ID matching needed.
-  // This works regardless of what document ID was used when creating the admin doc.
-  const adminsRef = collection(db, 'schools', code, 'admins');
-  const q = query(adminsRef, where('email', '==', emailNorm));
-  dlog(`loginAdmin querying schools/${code}/admins where email==${emailNorm}`);
+  const uid = credential.user.uid;
 
-  let adminSnap;
+  // First try: direct UID doc lookup from server (fastest)
   try {
-    adminSnap = await getDocs(q);
-    dlog(`loginAdmin query returned ${adminSnap.size} doc(s)`);
+    dlog(`loginAdmin trying direct UID lookup: schools/${code}/admins/${uid}`);
+    const directSnap = await getDocFromServer(doc(db, 'schools', code, 'admins', uid));
+    dlog(`loginAdmin direct lookup exists=${directSnap.exists()}`);
+    if (directSnap.exists()) {
+      await saveSession(uid, { userType: USER_TYPES.ADMIN, schoolCode: code, userId: uid });
+      dlog('loginAdmin SUCCESS via UID lookup');
+      return { user: credential.user, adminData: directSnap.data() };
+    }
   } catch (err) {
-    dlog(`loginAdmin Firestore QUERY FAILED code=${err.code} msg=${err.message}`);
+    dlog(`loginAdmin direct UID lookup error: ${err.message}`);
+  }
+
+  // Second try: query by email — forces server read, bypasses local cache
+  try {
+    dlog(`loginAdmin trying email query from server: schools/${code}/admins where email==${emailNorm}`);
+    const adminsRef = collection(db, 'schools', code, 'admins');
+    const q = query(adminsRef, where('email', '==', emailNorm));
+    const adminSnap = await getDocsFromServer(q);
+    dlog(`loginAdmin email query returned ${adminSnap.size} doc(s)`);
+
+    if (!adminSnap.empty) {
+      dlog(`loginAdmin admin doc data: ${JSON.stringify(adminSnap.docs[0].data())}`);
+      await saveSession(uid, { userType: USER_TYPES.ADMIN, schoolCode: code, userId: uid });
+      dlog('loginAdmin SUCCESS via email query');
+      return { user: credential.user, adminData: adminSnap.docs[0].data() };
+    }
+  } catch (err) {
+    dlog(`loginAdmin email query error: ${err.code} — ${err.message}`);
     await signOut(auth);
     throw err;
   }
 
-  if (adminSnap.empty) {
-    dlog(`loginAdmin REJECTED — no admin doc found with email=${emailNorm} in schools/${code}/admins`);
-    await signOut(auth);
-    throw new Error('NOT_AN_ADMIN');
-  }
-
-  dlog(`loginAdmin admin doc found: ${JSON.stringify(adminSnap.docs[0].data())}`);
-
-  await saveSession(credential.user.uid, {
-    userType: USER_TYPES.ADMIN,
-    schoolCode: code,
-    userId: credential.user.uid,
-  });
-
-  dlog('loginAdmin SUCCESS');
-  return { user: credential.user, adminData: adminSnap.docs[0].data() };
+  dlog(`loginAdmin REJECTED — not found by UID or email in schools/${code}/admins`);
+  await signOut(auth);
+  throw new Error('NOT_AN_ADMIN');
 };
 
 export const logoutUser = async () => {
