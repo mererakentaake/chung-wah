@@ -112,7 +112,7 @@ function Field({ label, value, onChange, placeholder, type = 'text' }) {
   return (
     <div>
       <label className="text-white/50 text-xs font-body font-medium mb-1.5 block">{label}</label>
-      <input className="field" type={type} value={value || ''} onChange={onChange} placeholder={placeholder} />
+      <input className="field-dark" type={type} value={value || ''} onChange={onChange} placeholder={placeholder} />
     </div>
   );
 }
