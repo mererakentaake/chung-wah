@@ -1,4 +1,3 @@
-
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
@@ -13,9 +12,7 @@ const config: CapacitorConfig = {
     },
   },
   server: {
-    // Use https scheme so Firebase Auth cookies/storage are treated as
-    // secure-origin — required for IndexedDB persistence to work correctly
-    // in the Capacitor Android WebView.
+    cleartext: true,
     androidScheme: 'https',
   },
   plugins: {
