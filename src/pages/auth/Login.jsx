@@ -16,11 +16,12 @@ const USER_OPTIONS = [
 const ERROR_MSGS = {
   'USER_NOT_FOUND':           'No account found with that email.',
   'USER_NOT_PREREGISTERED':   'Your email has not been pre-registered by the school admin.',
+  'NEEDS_REGISTRATION':       'Your account is pre-registered but not yet activated. Switch to "Register" below and set your password to activate it.',
   'NOT_AN_ADMIN':             'This account does not have admin access for this school.',
   'auth/wrong-password':      'Incorrect password.',
   'auth/invalid-credential':  'Incorrect email or password.',
   'auth/user-not-found':      'No account found with that email.',
-  'auth/email-already-in-use':'Email already registered.',
+  'auth/email-already-in-use':'Email already registered. Try signing in instead.',
   'auth/weak-password':       'Password should be at least 6 characters.',
   'auth/network-request-failed':'Network error. Check your connection.',
   'auth/too-many-requests':   'Too many attempts. Try again later.',
