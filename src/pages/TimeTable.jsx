@@ -55,9 +55,9 @@ export default function TimeTable() {
       <div className="flex-1 overflow-y-auto px-4 pt-3 pb-28">
         {/* Filter */}
         <div className="flex gap-2 mb-4">
-          <input className="field flex-1 py-2.5 text-sm" placeholder="Class (e.g. 9)"
+          <input className="field-dark flex-1 py-2.5 text-sm" placeholder="Class (e.g. 9)"
             value={standard} onChange={e => setStandard(e.target.value)} />
-          <input className="field flex-1 py-2.5 text-sm" placeholder="Div (A/B)"
+          <input className="field-dark flex-1 py-2.5 text-sm" placeholder="Div (A/B)"
             value={division} onChange={e => setDivision(e.target.value)} />
         </div>
 
