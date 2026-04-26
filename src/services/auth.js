@@ -60,7 +60,17 @@ export const checkSchoolAndUser = async ({ schoolCode, email, userType }) => {
 export const loginUser = async ({ email, password, schoolCode, userType }) => {
   const checkResult = await checkSchoolAndUser({ schoolCode, email, userType });
   if (!checkResult.success) throw new Error(checkResult.error);
-  const credential = await signInWithEmailAndPassword(auth, email, password);
+  let credential;
+  try {
+    credential = await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    // Pre-registration record exists but Firebase Auth account has not been created yet.
+    // The user must tap "Register" (not "Sign In") on their first login to set a password.
+    if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+      throw new Error('NEEDS_REGISTRATION');
+    }
+    throw err;
+  }
   let resolvedType = userType;
   if (userType === USER_TYPES.TEACHER) {
     resolvedType = checkResult.userData.isATeacher ? USER_TYPES.TEACHER : USER_TYPES.PARENT;
@@ -81,11 +91,34 @@ export const registerUser = async ({ email, password, schoolCode, userType }) =>
   if (userType === USER_TYPES.TEACHER) {
     resolvedType = checkResult.userData.isATeacher ? USER_TYPES.TEACHER : USER_TYPES.PARENT;
   }
+  const code = schoolCode.toUpperCase().trim();
+  const docId = checkResult.userData.id || checkResult.docId;
   await saveSession(credential.user.uid, {
     userType: resolvedType,
-    schoolCode: schoolCode.toUpperCase().trim(),
-    userId: checkResult.userData.id || checkResult.docId,
+    schoolCode: code,
+    userId: docId,
   });
+
+  // Auto-seed the user's profile from their pre-registration data so their
+  // name, class, and other details appear immediately without manual entry.
+  try {
+    const pre = checkResult.userData;
+    const profileData = { email: email.toLowerCase().trim() };
+    if (pre.displayName) profileData.displayName = pre.displayName;
+    if (pre.standard)    profileData.standard    = pre.standard;
+    if (pre.division)    profileData.division    = pre.division;
+    if (pre.enrollNo)    profileData.enrollNo    = pre.enrollNo;
+    if (pre.mobileNo)    profileData.mobileNo    = pre.mobileNo;
+    if (pre.dob)         profileData.dob         = pre.dob;
+    if (pre.bloodGroup)  profileData.bloodGroup  = pre.bloodGroup;
+    if (pre.subject)     profileData.subject     = pre.subject;
+    if (pre.childName)   profileData.childName   = pre.childName;
+    if (pre.childClass)  profileData.childClass  = pre.childClass;
+    await setDoc(doc(db, 'schools', code, 'users', docId), profileData, { merge: true });
+  } catch (_) {
+    // Don't fail the registration if profile seeding fails
+  }
+
   return credential.user;
 };
 
