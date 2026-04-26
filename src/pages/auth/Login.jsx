@@ -8,34 +8,34 @@ import { useAuth } from '../../context/AuthContext';
 import { USER_TYPES, ROUTES } from '../../utils/constants';
 
 const USER_OPTIONS = [
-  { label: 'Student', value: USER_TYPES.STUDENT, color: '#F4A334' },
+  { label: 'Student',        value: USER_TYPES.STUDENT, color: '#F4A334' },
   { label: 'Parent / Teacher', value: USER_TYPES.TEACHER, color: '#F9C61F' },
-  { label: 'Admin', value: USER_TYPES.ADMIN, color: '#a855f7' },
+  { label: 'Admin',          value: USER_TYPES.ADMIN,   color: '#a855f7' },
 ];
 
 const ERROR_MSGS = {
-  'USER_NOT_FOUND': 'No account found with that email.',
-  'USER_NOT_PREREGISTERED': 'Your email has not been pre-registered by the school admin yet.',
-  'NOT_AN_ADMIN': 'This account does not have admin access for this school.',
-  'auth/wrong-password': 'Incorrect password.',
-  'auth/invalid-credential': 'Incorrect email or password.',
-  'auth/user-not-found': 'No account found with that email.',
-  'auth/email-already-in-use': 'Email already registered.',
-  'auth/weak-password': 'Password should be at least 6 characters.',
-  'auth/network-request-failed': 'Network error. Check your connection.',
-  'auth/invalid-api-key': 'App configuration error. Contact support.',
-  'auth/too-many-requests': 'Too many attempts. Try again later.',
+  'USER_NOT_FOUND':           'No account found with that email.',
+  'USER_NOT_PREREGISTERED':   'Your email has not been pre-registered by the school admin yet.',
+  'NOT_AN_ADMIN':             'This account does not have admin access for this school.',
+  'auth/wrong-password':      'Incorrect password.',
+  'auth/invalid-credential':  'Incorrect email or password.',
+  'auth/user-not-found':      'No account found with that email.',
+  'auth/email-already-in-use':'Email already registered.',
+  'auth/weak-password':       'Password should be at least 6 characters.',
+  'auth/network-request-failed':'Network error. Check your connection.',
+  'auth/invalid-api-key':     'App configuration error. Contact support.',
+  'auth/too-many-requests':   'Too many attempts. Try again later.',
 };
 
 export default function Login() {
   const navigate = useNavigate();
-  const { refreshUserType } = useAuth();
-  const [mode, setMode] = useState('login');
+  const { setAuthState } = useAuth();
+  const [mode, setMode]         = useState('login');
   const [userType, setUserType] = useState(USER_TYPES.STUDENT);
   const [showPass, setShowPass] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [form, setForm] = useState({ schoolCode: '', email: '', password: '', confirmPassword: '' });
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+  const [form, setForm]         = useState({ schoolCode: '', email: '', password: '', confirmPassword: '' });
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
   const isAdmin = userType === USER_TYPES.ADMIN;
@@ -43,7 +43,7 @@ export default function Login() {
   const handleTypeChange = (type) => {
     setUserType(type);
     setError('');
-    if (type === USER_TYPES.ADMIN) setMode('login'); // admin is always login-only
+    if (type === USER_TYPES.ADMIN) setMode('login');
   };
 
   const submit = async () => {
@@ -59,19 +59,21 @@ export default function Login() {
     }
     setLoading(true);
     try {
+      const code = schoolCode.toUpperCase().trim();
       if (isAdmin) {
-        await loginAdmin({ email, password, schoolCode });
-        refreshUserType();
+        const { user } = await loginAdmin({ email, password, schoolCode });
+        // Set auth state directly — bypasses broken Firestore SDK getSession
+        setAuthState(USER_TYPES.ADMIN, code, user.uid);
         toast.success('Welcome, Admin!');
         navigate(ROUTES.ADMIN_DASHBOARD, { replace: true });
       } else if (mode === 'login') {
-        await loginUser({ email, password, schoolCode, userType });
-        refreshUserType();
+        const { user, userType: resolvedType } = await loginUser({ email, password, schoolCode, userType });
+        setAuthState(resolvedType, code, user.uid);
         toast.success('Welcome back!');
         navigate(ROUTES.HOME, { replace: true });
       } else {
-        await registerUser({ email, password, schoolCode, userType });
-        refreshUserType();
+        const user = await registerUser({ email, password, schoolCode, userType });
+        setAuthState(userType, code, user.uid);
         toast.success('Account created!');
         navigate(ROUTES.PROFILE, { replace: true });
       }
@@ -84,7 +86,6 @@ export default function Login() {
 
   return (
     <div className="min-h-screen mesh-bg flex flex-col">
-      {/* School crest header */}
       <div className="flex flex-col items-center pt-12 pb-5 px-6">
         <img src="/school-crest.png" alt="Chung Wah School Crest"
           className="w-24 h-24 object-contain drop-shadow-lg mb-3" />
@@ -104,7 +105,6 @@ export default function Login() {
           </p>
         </div>
 
-        {/* User type tabs */}
         <div className="flex gap-1.5 mb-5 p-1 rounded-2xl bg-white/5 border border-white/8">
           {USER_OPTIONS.map(opt => (
             <button key={opt.value} onClick={() => handleTypeChange(opt.value)}
@@ -116,7 +116,6 @@ export default function Login() {
           ))}
         </div>
 
-        {/* Admin info notice */}
         {isAdmin && (
           <div className="flex items-start gap-2.5 p-3 rounded-xl bg-purple-500/15 border border-purple-500/25 mb-4">
             <ShieldCheck size={16} className="text-purple-400 shrink-0 mt-0.5" />
@@ -182,15 +181,14 @@ export default function Login() {
             }}>
             {loading ? (
               <div className="flex gap-1.5">
-                {[0, 1, 2].map(i => (
+                {[0,1,2].map(i => (
                   <div key={i} className="w-2 h-2 rounded-full bg-current opacity-60"
-                    style={{ animation: `bounce 1s ease-in-out ${i * 0.15}s infinite` }} />
+                    style={{ animation: `bounce 1s ease-in-out ${i*0.15}s infinite` }} />
                 ))}
               </div>
             ) : isAdmin ? 'Sign In as Admin' : mode === 'login' ? 'Sign In' : 'Create Account'}
           </button>
 
-          {/* Register toggle — hidden for admin */}
           {!isAdmin && (
             <p className="text-center text-white/50 font-body text-sm pb-8">
               {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
