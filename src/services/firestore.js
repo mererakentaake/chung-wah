@@ -15,8 +15,66 @@ export const getProfile = async (uid, type = 'users') => {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 };
 
+// Profile is read-only from the user side — admin data is the source of truth.
+// Only photoUrl is user-editable.
+export const updateProfilePhoto = async (uid, photoUrl) => {
+  await setDoc(doc(db, 'schools', schoolCode(), 'users', uid), { photoUrl }, { merge: true });
+};
+
+// Keep for internal seeding use (auth.js registerUser)
 export const updateProfile = async (uid, data, type = 'users') => {
   await setDoc(doc(db, 'schools', schoolCode(), type, uid), data, { merge: true });
+};
+
+// ─── Profile Correction Requests ────────────────────────────────────────────
+export const requestProfileCorrection = async (message) => {
+  await addDoc(collection(db, 'schools', schoolCode(), 'profileCorrections'), {
+    userId: userId(),
+    message: message.trim(),
+    status: 'pending',
+    createdAt: serverTimestamp(),
+  });
+};
+
+// ─── Guardian / Parent Requests ─────────────────────────────────────────────
+// Listener: student sees pending requests to confirm
+export const getGuardianRequests = (studentDocId, callback) => {
+  const q = query(
+    collection(db, 'schools', schoolCode(), 'guardianRequests'),
+    where('studentDocId', '==', studentDocId),
+    where('status', '==', 'pending')
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+// Student accepts or rejects a guardian request
+export const respondToGuardianRequest = async (requestId, accepted, parentDocId) => {
+  const status = accepted ? 'confirmed' : 'rejected';
+  await updateDoc(
+    doc(db, 'schools', schoolCode(), 'guardianRequests', requestId),
+    { status, respondedAt: serverTimestamp() }
+  );
+  if (accepted) {
+    // Mark in student's profile that this guardian is confirmed
+    await setDoc(
+      doc(db, 'schools', schoolCode(), 'users', userId()),
+      { [`guardians.${parentDocId}`]: 'confirmed' },
+      { merge: true }
+    );
+  }
+};
+
+// Get all guardian request docs for a parent (to show pending/confirmed in Children panel)
+export const getParentGuardianLinks = (parentDocId, callback) => {
+  const q = query(
+    collection(db, 'schools', schoolCode(), 'guardianRequests'),
+    where('parentDocId', '==', parentDocId)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
 };
 
 // ─── Announcements ──────────────────────────────────────────────────────────
@@ -68,6 +126,38 @@ export const uploadAssignment = async (data, file) => {
   });
 };
 
+// ─── Student Reports (teacher writes) ────────────────────────────────────────
+export const createStudentReport = async (data) => {
+  await addDoc(collection(db, 'schools', schoolCode(), 'studentReports'), {
+    ...data,
+    teacherId: userId(),
+    createdAt: serverTimestamp(),
+  });
+};
+
+export const getStudentReportsByTeacher = (callback) => {
+  const q = query(
+    collection(db, 'schools', schoolCode(), 'studentReports'),
+    where('teacherId', '==', userId()),
+    orderBy('createdAt', 'desc'),
+    limit(50)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const getStudentReports = (studentId, callback) => {
+  const q = query(
+    collection(db, 'schools', schoolCode(), 'studentReports'),
+    where('studentId', '==', studentId),
+    orderBy('createdAt', 'desc')
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 export const getChats = (chatId, callback) => {
   const q = query(
@@ -109,11 +199,11 @@ export const getTimeTable = async (standard, division) => {
   return snap.exists() ? snap.data() : null;
 };
 
-// ─── Students/Children ────────────────────────────────────────────────────────
+// ─── Students / Children (parent panel) ──────────────────────────────────────
 export const getChildren = async (childIds) => {
   if (!childIds || Object.keys(childIds).length === 0) return [];
   const ids = Object.values(childIds);
-  const results = await Promise.all(ids.map(id => getDoc(doc(db, 'schools', schoolCode(), 'students', id))));
+  const results = await Promise.all(ids.map(id => getDoc(doc(db, 'schools', schoolCode(), 'users', id))));
   return results.filter(s => s.exists()).map(s => ({ id: s.id, ...s.data() }));
 };
 
@@ -130,7 +220,6 @@ export const uploadFile = async (file, path) => {
 
 const adminSchoolCode = () => localStorage.getItem('schoolCode') || '';
 
-// ─── Admin: Get all students ──────────────────────────────────────────────────
 export const adminGetStudents = async () => {
   const snap = await getDocs(
     collection(db, 'schools', adminSchoolCode(), 'Login', 'Student', 'users')
@@ -138,7 +227,6 @@ export const adminGetStudents = async () => {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
 
-// ─── Admin: Get all teachers & parents ───────────────────────────────────────
 export const adminGetTeachersParents = async () => {
   const snap = await getDocs(
     collection(db, 'schools', adminSchoolCode(), 'Login', 'Parent-Teacher', 'users')
@@ -146,7 +234,6 @@ export const adminGetTeachersParents = async () => {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
 
-// ─── Admin: Create student pre-registration ───────────────────────────────────
 export const adminCreateStudent = async (data) => {
   const ref = await addDoc(
     collection(db, 'schools', adminSchoolCode(), 'Login', 'Student', 'users'),
@@ -160,22 +247,50 @@ export const adminCreateStudent = async (data) => {
   return ref.id;
 };
 
-// ─── Admin: Create teacher/parent pre-registration ────────────────────────────
+// Creates a guardian request for each child linked to the parent/guardian
+const adminCreateGuardianRequests = async (parentDocId, parentName, parentTitle, relationshipType, children) => {
+  await Promise.all(
+    children.map(child =>
+      addDoc(collection(db, 'schools', adminSchoolCode(), 'guardianRequests'), {
+        parentDocId,
+        parentName,
+        parentTitle,         // 'Mr' | 'Mrs' | 'Miss'
+        relationshipType,    // 'Parent' | 'Guardian'
+        studentDocId: child.studentId,
+        studentName: child.studentName,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      })
+    )
+  );
+};
+
 export const adminCreateTeacherParent = async (data) => {
-  const ref = await addDoc(
+  const { children = [], ...rest } = data;
+  const docRef = await addDoc(
     collection(db, 'schools', adminSchoolCode(), 'Login', 'Parent-Teacher', 'users'),
     {
-      ...data,
-      email: data.email.toLowerCase().trim(),
-      isATeacher: data.isATeacher ?? true,
+      ...rest,
+      email: rest.email.toLowerCase().trim(),
+      isATeacher: rest.isATeacher ?? true,
+      children: children.map(c => ({ ...c, status: 'pending' })),
       createdAt: new Date().toISOString(),
       createdBy: userId(),
     }
   );
-  return ref.id;
+  // Create pending guardian request docs for each child (so student sees notification)
+  if (!rest.isATeacher && children.length > 0) {
+    await adminCreateGuardianRequests(
+      docRef.id,
+      rest.displayName,
+      rest.title || '',
+      rest.relationshipType || 'Parent',
+      children
+    );
+  }
+  return docRef.id;
 };
 
-// ─── Admin: Update student ────────────────────────────────────────────────────
 export const adminUpdateStudent = async (docId, data) => {
   await updateDoc(
     doc(db, 'schools', adminSchoolCode(), 'Login', 'Student', 'users', docId),
@@ -183,7 +298,6 @@ export const adminUpdateStudent = async (docId, data) => {
   );
 };
 
-// ─── Admin: Update teacher/parent ─────────────────────────────────────────────
 export const adminUpdateTeacherParent = async (docId, data) => {
   await updateDoc(
     doc(db, 'schools', adminSchoolCode(), 'Login', 'Parent-Teacher', 'users', docId),
@@ -191,21 +305,18 @@ export const adminUpdateTeacherParent = async (docId, data) => {
   );
 };
 
-// ─── Admin: Delete student ────────────────────────────────────────────────────
 export const adminDeleteStudent = async (docId) => {
   await deleteDoc(
     doc(db, 'schools', adminSchoolCode(), 'Login', 'Student', 'users', docId)
   );
 };
 
-// ─── Admin: Delete teacher/parent ─────────────────────────────────────────────
 export const adminDeleteTeacherParent = async (docId) => {
   await deleteDoc(
     doc(db, 'schools', adminSchoolCode(), 'Login', 'Parent-Teacher', 'users', docId)
   );
 };
 
-// ─── Admin: Get school stats ──────────────────────────────────────────────────
 export const adminGetStats = async () => {
   const [studentsSnap, teachersSnap] = await Promise.all([
     getDocs(collection(db, 'schools', adminSchoolCode(), 'Login', 'Student', 'users')),
@@ -217,4 +328,27 @@ export const adminGetStats = async () => {
     totalTeachers: teachers.filter(t => t.isATeacher).length,
     totalParents: teachers.filter(t => !t.isATeacher).length,
   };
+};
+
+// ─── Teacher: Link a guardian to a student ────────────────────────────────────
+export const teacherLinkGuardian = async ({ parentDocId, parentName, parentTitle, relationshipType, studentDocId, studentName }) => {
+  // Check if a pending/confirmed request already exists
+  const existing = await getDocs(query(
+    collection(db, 'schools', schoolCode(), 'guardianRequests'),
+    where('parentDocId', '==', parentDocId),
+    where('studentDocId', '==', studentDocId)
+  ));
+  if (!existing.empty) throw new Error('A link request already exists for this pair.');
+  await addDoc(collection(db, 'schools', schoolCode(), 'guardianRequests'), {
+    parentDocId,
+    parentName,
+    parentTitle,
+    relationshipType,
+    studentDocId,
+    studentName,
+    status: 'pending',
+    createdBy: userId(),
+    createdByRole: 'teacher',
+    createdAt: new Date().toISOString(),
+  });
 };
