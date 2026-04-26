@@ -1,7 +1,7 @@
 // src/services/firebase.js
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, indexedDBLocalPersistence, browserLocalPersistence } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache } from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 
@@ -17,17 +17,16 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Persistence chain — tries IndexedDB first, falls back to localStorage
-// if the Capacitor WebView has IndexedDB sandboxed or disabled.
+// Auth: persistence chain so session survives app restarts on Android
 export const auth = initializeAuth(app, {
   persistence: [indexedDBLocalPersistence, browserLocalPersistence],
 });
 
-// Replaces the deprecated enableIndexedDbPersistence() call which can
-// throw on Android and is removed in newer Firebase SDK versions.
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache(),
-});
+// Plain Firestore — no persistentLocalCache.
+// persistentLocalCache breaks getDocFromServer/getDocsFromServer on
+// Capacitor Android WebView, causing all reads to return empty even
+// when the document exists on the server.
+export const db = getFirestore(app);
 
 export const storage = getStorage(app);
 
