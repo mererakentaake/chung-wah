@@ -7,8 +7,7 @@ import {
   onAuthStateChanged,
 } from 'firebase/auth';
 import {
-  doc, getDoc, getDocs, getDocFromServer, getDocsFromServer,
-  collection, query, where, setDoc
+  doc, getDoc, getDocs, collection, query, where, setDoc
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { USER_TYPES } from '../utils/constants';
@@ -33,9 +32,74 @@ export function clearDebugLog() {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Log the actual Firebase project being used on startup
-dlog(`FIREBASE PROJECT_ID env = "${import.meta.env.VITE_FIREBASE_PROJECT_ID}"`);
-dlog(`FIREBASE AUTH_DOMAIN env = "${import.meta.env.VITE_FIREBASE_AUTH_DOMAIN}"`);
+dlog(`FIREBASE PROJECT_ID = "${import.meta.env.VITE_FIREBASE_PROJECT_ID}"`);
+
+// ── Direct REST check — bypasses the Firestore SDK entirely ──────────────────
+// The SDK consistently returns empty on this Capacitor WebView build.
+// A plain fetch() to the Firestore REST API is more reliable.
+async function checkAdminViaREST(projectId, schoolCode, uid, idToken) {
+  const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+
+  // Check 1: by UID document path
+  const uidUrl = `${base}/schools/${schoolCode}/admins/${uid}`;
+  dlog(`REST GET ${uidUrl}`);
+  try {
+    const res = await fetch(uidUrl, {
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    dlog(`REST UID status=${res.status}`);
+    if (res.ok) {
+      const json = await res.json();
+      dlog(`REST UID doc found: ${JSON.stringify(Object.keys(json.fields || {}))}`);
+      return true;
+    }
+  } catch (err) {
+    dlog(`REST UID fetch error: ${err.message}`);
+  }
+
+  // Check 2: query by email field
+  const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
+  dlog(`REST runQuery schools/${schoolCode}/admins by email`);
+  try {
+    const body = {
+      structuredQuery: {
+        from: [{ collectionId: 'admins' }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: 'email' },
+            op: 'EQUAL',
+            value: { stringValue: auth.currentUser?.email?.toLowerCase().trim() },
+          },
+        },
+        limit: 1,
+      },
+    };
+    const res = await fetch(
+      `${queryUrl}?parent=projects/${projectId}/databases/(default)/documents/schools/${schoolCode}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      }
+    );
+    dlog(`REST query status=${res.status}`);
+    const json = await res.json();
+    dlog(`REST query result=${JSON.stringify(json).slice(0, 200)}`);
+    // A successful query with a document returns array with `document` key
+    if (Array.isArray(json) && json[0]?.document) {
+      dlog('REST query found admin doc');
+      return true;
+    }
+  } catch (err) {
+    dlog(`REST query fetch error: ${err.message}`);
+  }
+
+  return false;
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const saveSession = async (uid, { userType, schoolCode, userId }) => {
   dlog(`saveSession uid=${uid} type=${userType} school=${schoolCode}`);
@@ -48,8 +112,8 @@ export const saveSession = async (uid, { userType, schoolCode, userId }) => {
 
 export const getSession = async (uid) => {
   dlog(`getSession uid=${uid}`);
-  const snap = await getDocFromServer(doc(db, 'sessions', uid));
-  dlog(`getSession exists=${snap.exists()} data=${JSON.stringify(snap.exists() ? snap.data() : null)}`);
+  const snap = await getDoc(doc(db, 'sessions', uid));
+  dlog(`getSession exists=${snap.exists()}`);
   return snap.exists() ? snap.data() : null;
 };
 
@@ -63,8 +127,7 @@ export const clearSession = async (uid) => {
 
 export const checkSchoolAndUser = async ({ schoolCode, email, userType }) => {
   const loginType = userType === USER_TYPES.STUDENT ? 'Student' : 'Parent-Teacher';
-  const path = `schools/${schoolCode.toUpperCase().trim()}/Login/${loginType}/users`;
-  dlog(`checkSchoolAndUser path=${path} email=${email}`);
+  dlog(`checkSchoolAndUser schools/${schoolCode}/Login/${loginType}/users email=${email}`);
   const userRef = collection(db, 'schools', schoolCode.toUpperCase().trim(), 'Login', loginType, 'users');
   const q = query(userRef, where('email', '==', email.toLowerCase().trim()));
   const snap = await getDocs(q);
@@ -111,67 +174,48 @@ export const registerUser = async ({ email, password, schoolCode, userType }) =>
 
 export const loginAdmin = async ({ email, password, schoolCode }) => {
   const code = schoolCode.toUpperCase().trim();
-  const emailNorm = email.toLowerCase().trim();
-  dlog(`loginAdmin START email=${emailNorm} schoolCode="${code}"`);
-  dlog(`loginAdmin Firestore app projectId="${db.app.options.projectId}"`);
+  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+  dlog(`loginAdmin START email=${email} school=${code} project=${projectId}`);
 
   let credential;
   try {
     credential = await signInWithEmailAndPassword(auth, email, password);
     dlog(`loginAdmin Firebase Auth OK uid=${credential.user.uid}`);
   } catch (err) {
-    dlog(`loginAdmin Firebase Auth FAILED code=${err.code} msg=${err.message}`);
+    dlog(`loginAdmin Auth FAILED: ${err.code}`);
     throw err;
   }
 
   const uid = credential.user.uid;
 
-  // Try 1: direct UID doc — no cache
+  // Get ID token to authenticate REST calls
+  let idToken;
   try {
-    const directSnap = await getDocFromServer(doc(db, 'schools', code, 'admins', uid));
-    dlog(`loginAdmin UID lookup exists=${directSnap.exists()}`);
-    if (directSnap.exists()) {
-      await saveSession(uid, { userType: USER_TYPES.ADMIN, schoolCode: code, userId: uid });
-      dlog('loginAdmin SUCCESS via UID');
-      return { user: credential.user, adminData: directSnap.data() };
-    }
+    idToken = await credential.user.getIdToken();
+    dlog(`loginAdmin got idToken (length=${idToken.length})`);
   } catch (err) {
-    dlog(`loginAdmin UID lookup ERROR: ${err.code} — ${err.message}`);
-  }
-
-  // Try 2: email query — no cache
-  try {
-    const adminsRef = collection(db, 'schools', code, 'admins');
-    const q = query(adminsRef, where('email', '==', emailNorm));
-    const adminSnap = await getDocsFromServer(q);
-    dlog(`loginAdmin email query returned ${adminSnap.size} doc(s)`);
-    if (!adminSnap.empty) {
-      await saveSession(uid, { userType: USER_TYPES.ADMIN, schoolCode: code, userId: uid });
-      dlog('loginAdmin SUCCESS via email query');
-      return { user: credential.user, adminData: adminSnap.docs[0].data() };
-    }
-  } catch (err) {
-    dlog(`loginAdmin email query ERROR: ${err.code} — ${err.message}`);
+    dlog(`loginAdmin getIdToken FAILED: ${err.message}`);
     await signOut(auth);
     throw err;
   }
 
-  // Try 3: plain getDoc (cached) as last resort
-  try {
-    const cachedSnap = await getDoc(doc(db, 'schools', code, 'admins', uid));
-    dlog(`loginAdmin cached getDoc exists=${cachedSnap.exists()}`);
-    if (cachedSnap.exists()) {
-      await saveSession(uid, { userType: USER_TYPES.ADMIN, schoolCode: code, userId: uid });
-      dlog('loginAdmin SUCCESS via cached getDoc');
-      return { user: credential.user, adminData: cachedSnap.data() };
-    }
-  } catch (err) {
-    dlog(`loginAdmin cached getDoc ERROR: ${err.code} — ${err.message}`);
+  // Use REST API — bypasses Firestore SDK which has issues in this WebView
+  const isAdmin = await checkAdminViaREST(projectId, code, uid, idToken);
+
+  if (!isAdmin) {
+    dlog('loginAdmin REJECTED');
+    await signOut(auth);
+    throw new Error('NOT_AN_ADMIN');
   }
 
-  dlog(`loginAdmin REJECTED — not found in schools/${code}/admins`);
-  await signOut(auth);
-  throw new Error('NOT_AN_ADMIN');
+  await saveSession(uid, {
+    userType: USER_TYPES.ADMIN,
+    schoolCode: code,
+    userId: uid,
+  });
+
+  dlog('loginAdmin SUCCESS');
+  return { user: credential.user, adminData: {} };
 };
 
 export const logoutUser = async () => {
