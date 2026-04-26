@@ -39,11 +39,11 @@ function UploadModal({ onClose }) {
           </button>
         </div>
         <div className="flex flex-col gap-4">
-          <input className="field" placeholder="Title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-          <textarea className="field resize-none min-h-[70px]" placeholder="Description (optional)" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          <input className="field-dark" placeholder="Title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+          <textarea className="field-dark resize-none min-h-[70px]" placeholder="Description (optional)" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
           <div className="flex gap-3">
-            <input className="field flex-1" placeholder="Class" value={form.standard} onChange={e => setForm(f => ({ ...f, standard: e.target.value }))} />
-            <input className="field flex-1" placeholder="Div" value={form.division} onChange={e => setForm(f => ({ ...f, division: e.target.value }))} />
+            <input className="field-dark flex-1" placeholder="Class" value={form.standard} onChange={e => setForm(f => ({ ...f, standard: e.target.value }))} />
+            <input className="field-dark flex-1" placeholder="Div" value={form.division} onChange={e => setForm(f => ({ ...f, division: e.target.value }))} />
           </div>
           <label className="flex items-center gap-3 p-4 rounded-2xl border border-dashed border-white/15 cursor-pointer hover:bg-white/5 transition-colors">
             <div className="w-10 h-10 rounded-xl bg-gold-500/20 flex items-center justify-center shrink-0">
