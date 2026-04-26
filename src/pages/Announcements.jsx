@@ -102,12 +102,12 @@ function CreateModal({ onClose, onSuccess }) {
         </div>
 
         <div className="flex flex-col gap-4">
-          <input className="field" placeholder="Title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
-          <textarea className="field min-h-[80px] resize-none" placeholder="Write your announcement..." value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} />
+          <input className="field-dark" placeholder="Title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+          <textarea className="field-dark min-h-[80px] resize-none" placeholder="Write your announcement..." value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} />
 
           <div className="flex gap-3">
-            <input className="field flex-1" placeholder="Standard (e.g. 9)" value={form.standard} onChange={e => setForm(f => ({ ...f, standard: e.target.value }))} />
-            <input className="field flex-1" placeholder="Division (A/B)" value={form.division} onChange={e => setForm(f => ({ ...f, division: e.target.value }))} />
+            <input className="field-dark flex-1" placeholder="Standard (e.g. 9)" value={form.standard} onChange={e => setForm(f => ({ ...f, standard: e.target.value }))} />
+            <input className="field-dark flex-1" placeholder="Division (A/B)" value={form.division} onChange={e => setForm(f => ({ ...f, division: e.target.value }))} />
           </div>
 
           <div className="flex gap-2">
@@ -163,9 +163,9 @@ export default function Announcements() {
       <div className="flex-1 overflow-y-auto px-4 pt-3 pb-24">
         {/* Filter row */}
         <div className="flex gap-2 mb-4">
-          <input className="field flex-1 py-2 text-sm" placeholder="Class (e.g. 9)"
+          <input className="field-dark flex-1 py-2 text-sm" placeholder="Class (e.g. 9)"
             value={filter.standard} onChange={e => setFilter(f => ({ ...f, standard: e.target.value }))} />
-          <input className="field flex-1 py-2 text-sm" placeholder="Div (A/B)"
+          <input className="field-dark flex-1 py-2 text-sm" placeholder="Div (A/B)"
             value={filter.division} onChange={e => setFilter(f => ({ ...f, division: e.target.value }))} />
           {(filter.standard || filter.division) && (
             <button onClick={() => setFilter({ standard: '', division: '' })}
