@@ -36,9 +36,13 @@ export default function ManageStudents() {
     setFiltered(
       students.filter(s =>
         (s.displayName || s.name || '').toLowerCase().includes(q) ||
-        (s.email || '').toLowerCase().includes(q) ||
-        (s.standard || '').toString().includes(q) ||
-        (s.division || '').toLowerCase().includes(q)
+        (s.givenName  || '').toLowerCase().includes(q) ||
+        (s.familyName || '').toLowerCase().includes(q) ||
+        (s.email      || '').toLowerCase().includes(q) ||
+        (s.enrollNo   || '').toLowerCase().includes(q) ||
+        (s.category   || '').toLowerCase().includes(q) ||
+        (s.standard   || '').toString().toLowerCase().includes(q) ||
+        (s.division   || '').toLowerCase().includes(q)
       )
     );
   }, [search, students]);
@@ -127,24 +131,46 @@ export default function ManageStudents() {
 }
 
 function StudentCard({ student, deleting, onEdit, onDelete }) {
-  const name = student.displayName || student.name || '—';
-  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  const cls = student.standard && student.division
-    ? `Std ${student.standard} – ${student.division.toUpperCase()}`
-    : 'No class assigned';
+  // Prefer separate given/family fields; fall back to displayName
+  const givenName  = student.givenName  || (student.displayName || student.name || '').split(' ')[0] || '';
+  const familyName = student.familyName || (student.displayName || student.name || '').split(' ').slice(1).join(' ') || '';
+  const fullName   = student.displayName || student.name || '—';
+
+  // Initials from given + family
+  const initials = [givenName[0], familyName[0]].filter(Boolean).join('').toUpperCase() || '?';
+
+  // Class line — label depends on category
+  const isSecondary  = (student.category || '').toLowerCase() === 'secondary';
+  const levelLabel   = isSecondary ? 'Form' : 'Std';
+  const categoryBadge = student.category || '';
+
+  let classLine = 'No class assigned';
+  if (student.standard && student.division) {
+    classLine = `${levelLabel} ${student.standard} – ${student.division.toUpperCase()}`;
+    if (categoryBadge) classLine += ` · ${categoryBadge}`;
+  } else if (categoryBadge) {
+    classLine = categoryBadge;
+  }
+
+  const enrollLabel = student.enrollNo ? `#${student.enrollNo}` : '';
 
   return (
     <div className="flex items-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/8">
       {/* Avatar */}
       <div className="w-11 h-11 rounded-xl bg-orange-500/20 border border-orange-500/25 flex items-center justify-center shrink-0">
-        <span className="font-display font-bold text-orange-400 text-sm">{initials || '?'}</span>
+        <span className="font-display font-bold text-orange-400 text-sm">{initials}</span>
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="font-display font-semibold text-white text-sm truncate">{name}</p>
+        <div className="flex items-baseline gap-2 min-w-0">
+          <p className="font-display font-semibold text-white text-sm truncate">{fullName}</p>
+          {enrollLabel && (
+            <span className="text-white/30 text-xs font-body shrink-0">{enrollLabel}</span>
+          )}
+        </div>
         <p className="text-white/40 text-xs font-body truncate">{student.email}</p>
-        <p className="text-orange-400/80 text-xs font-body mt-0.5">{cls}</p>
+        <p className="text-orange-400/80 text-xs font-body mt-0.5">{classLine}</p>
       </div>
 
       {/* Actions */}
