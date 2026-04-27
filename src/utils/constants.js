@@ -56,6 +56,6 @@ export const STRINGS = {
 };
 
 export const TITLES = ['Mr', 'Mrs', 'Miss'];
-export const GENDERS = ['Male', 'Female', 'Other'];
+export const GENDERS = ['Male', 'Female'];
 export const RELATIONSHIP_TYPES = ['Parent', 'Guardian'];
 export const REPORT_TYPES = ['Marks / Assessment', 'Behaviour', 'Performance', 'General Improvement'];
