@@ -341,7 +341,7 @@ export default function CreateEditUser() {
   // Derived values
   const standardLabel = form.category === 'Secondary' ? 'Form' : 'Standard';
   const standardOpts  = form.category === 'Secondary' ? ['One', 'Two', 'Three'] : ['1','2','3','4','5','6'];
-  const standardPH    = form.category === 'Secondary' ? 'Select Form' : 'Select Standard';
+  const standardPH    = form.category === 'Secondary' ? 'Select Form' : 'Select standard';
   const showClassFields = isStudent && (form.category === 'Primary' || form.category === 'Secondary');
 
   // All prerequisite student fields are filled → ready to generate enrol no.
