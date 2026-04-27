@@ -352,3 +352,25 @@ export const teacherLinkGuardian = async ({ parentDocId, parentName, parentTitle
     createdAt: new Date().toISOString(),
   });
 };
+
+// ─── Admin: Get the confirmed parent/guardian linked to a student ─────────────
+export const adminGetLinkedParent = async (studentId) => {
+  const all = await adminGetTeachersParents();
+  return all.find(p =>
+    !p.isATeacher &&
+    p.children?.some(c => c.studentId === studentId && c.status === 'confirmed')
+  ) || null;
+};
+
+// ─── Admin: Get next enrolment number ────────────────────────────────────────
+export const adminGetNextEnrolNo = async () => {
+  const students = await adminGetStudents();
+  let max = 0;
+  students.forEach(s => {
+    if (s.enrollNo && /^CHW\d{4}$/.test(s.enrollNo)) {
+      const n = parseInt(s.enrollNo.slice(3), 10);
+      if (!isNaN(n) && n > max) max = n;
+    }
+  });
+  return `CHW${String(max + 1).padStart(4, '0')}`;
+};
