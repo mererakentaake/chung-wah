@@ -1,7 +1,7 @@
 // src/pages/Settings.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, LogOut, Moon, Sun, Info, ChevronRight, Shield, Bell } from 'lucide-react';
+import { User, LogOut, Moon, Sun, Info, ChevronRight, Shield, Bell, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -16,7 +16,7 @@ function SettingRow({ icon: Icon, label, subtitle, onClick, danger, iconColor, r
       className={`w-full flex items-center gap-3.5 p-4 rounded-2xl transition-all active:scale-[0.98]
         ${danger ? 'bg-coral-500/10 border border-coral-500/20 hover:bg-coral-500/15'
                  : 'glass-card hover:bg-white/10'}`}>
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0`}
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
         style={{ background: `${iconColor || '#F9C61F'}20` }}>
         <Icon size={19} style={{ color: iconColor || '#F9C61F' }} />
       </div>
@@ -29,17 +29,59 @@ function SettingRow({ icon: Icon, label, subtitle, onClick, danger, iconColor, r
   );
 }
 
+/* ── Sign-out confirmation modal ────────────────────────────────────────── */
+function SignOutModal({ onConfirm, onCancel, loading }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-5">
+      <div className="w-full max-w-sm rounded-3xl p-6 flex flex-col gap-5"
+        style={{ background: '#141829', border: '1px solid rgba(255,255,255,0.12)' }}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-display font-bold text-white text-lg">Sign Out?</h3>
+          <button onClick={onCancel}
+            className="w-8 h-8 rounded-xl bg-white/8 flex items-center justify-center">
+            <X size={16} className="text-white/60" />
+          </button>
+        </div>
+        <p className="text-white/55 text-sm font-body leading-relaxed">
+          Are you sure you want to sign out of Chung Wah E-School?
+        </p>
+        <div className="flex gap-3">
+          <button onClick={onCancel}
+            className="flex-1 py-3.5 rounded-2xl font-display font-bold text-sm text-white/60 transition-colors"
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            Cancel
+          </button>
+          <button onClick={onConfirm} disabled={loading}
+            className="flex-1 py-3.5 rounded-2xl font-display font-bold text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
+            style={{ background: 'linear-gradient(135deg, #E84545, #c53030)' }}>
+            {loading
+              ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              : <><LogOut size={15} />Sign Out</>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Settings() {
   const navigate = useNavigate();
   const { userType, user } = useAuth();
   const { isDark, toggle } = useTheme();
+  const [showSignOut, setShowSignOut] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = async () => {
+    setLoggingOut(true);
     try {
       await logoutUser();
       toast.success('Signed out successfully');
       navigate(ROUTES.WELCOME, { replace: true });
-    } catch { toast.error('Logout failed'); }
+    } catch {
+      toast.error('Logout failed');
+      setLoggingOut(false);
+    }
   };
 
   return (
@@ -47,7 +89,6 @@ export default function Settings() {
       <TopBar title="Settings" />
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-28">
 
-        {/* Account section */}
         <p className="text-white/30 text-xs font-body font-semibold uppercase tracking-widest mb-3 px-1">Account</p>
         <div className="flex flex-col gap-2 mb-6">
           <SettingRow icon={User} label="Profile" subtitle="Edit your personal information"
@@ -58,7 +99,6 @@ export default function Settings() {
             iconColor="#22c55e" onClick={() => toast('Coming soon', { icon: '🔒' })} />
         </div>
 
-        {/* Preferences section */}
         <p className="text-white/30 text-xs font-body font-semibold uppercase tracking-widest mb-3 px-1">Preferences</p>
         <div className="flex flex-col gap-2 mb-6">
           <SettingRow
@@ -75,7 +115,6 @@ export default function Settings() {
           />
         </div>
 
-        {/* About */}
         <p className="text-white/30 text-xs font-body font-semibold uppercase tracking-widest mb-3 px-1">About</p>
         <div className="flex flex-col gap-2 mb-6">
           <SettingRow icon={Info} label="About Chung Wah E-School"
@@ -83,11 +122,9 @@ export default function Settings() {
             iconColor="#3b82f6" onClick={() => {}} />
         </div>
 
-        {/* Logout */}
         <SettingRow icon={LogOut} label="Sign Out" subtitle="You can sign in on multiple devices"
-          danger onClick={handleLogout} />
+          danger onClick={() => setShowSignOut(true)} />
 
-        {/* User info chip */}
         <div className="mt-6 flex items-center justify-center">
           <div className="px-4 py-2 rounded-full bg-white/5 border border-white/8">
             <p className="text-white/30 text-xs font-body text-center">{user?.email}</p>
@@ -95,6 +132,14 @@ export default function Settings() {
         </div>
       </div>
       <BottomNav userType={userType} />
+
+      {showSignOut && (
+        <SignOutModal
+          onConfirm={handleLogout}
+          onCancel={() => setShowSignOut(false)}
+          loading={loggingOut}
+        />
+      )}
     </div>
   );
 }
