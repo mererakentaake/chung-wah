@@ -133,6 +133,7 @@ export default function Settings() {
       </div>
       <BottomNav userType={userType} />
 
+      {/* Rendered outside the scrollable container so fixed positioning always works correctly */}
       {showSignOut && (
         <SignOutModal
           onConfirm={handleLogout}
