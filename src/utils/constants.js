@@ -59,3 +59,18 @@ export const TITLES = ['Mr', 'Mrs', 'Miss'];
 export const GENDERS = ['Male', 'Female'];
 export const RELATIONSHIP_TYPES = ['Parent', 'Guardian'];
 export const REPORT_TYPES = ['Marks / Assessment', 'Behaviour', 'Performance', 'General Improvement'];
+
+export const SUBJECTS = [
+  'English',
+  'Mathematics',
+  'Science',
+  'Social Studies',
+  'Business Studies',
+  'Agriculture',
+  'Industrial Arts',
+  'Home Economics',
+  'Christian Education',
+  'Physical Education',
+  'ICT / Computer Studies',
+  'Health Education',
+];
