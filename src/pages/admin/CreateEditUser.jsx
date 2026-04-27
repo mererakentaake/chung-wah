@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Save, GraduationCap, UserCheck, Users,
-  Plus, X, Search, ChevronDown, User2,
+  Plus, X, Search, ChevronDown, User2, HelpCircle, Heart,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -12,11 +12,19 @@ import {
   adminGetStudents, adminGetTeachersParents,
   adminGetLinkedParent, adminGetNextEnrolNo,
 } from '../../services/firestore';
-import { ROUTES, TITLES, GENDERS, RELATIONSHIP_TYPES, USER_TYPES } from '../../utils/constants';
+import { ROUTES, TITLES, GENDERS, RELATIONSHIP_TYPES, USER_TYPES, SUBJECTS } from '../../utils/constants';
 import { useAuth } from '../../context/AuthContext';
 
+/* ── Error message style helper ──────────────────────────────────────────── */
+const errorBorder = { border: '1.5px solid #ef4444' };
+const errorMsg = (msg) => (
+  <p className="text-red-400 text-xs font-body mt-1.5 flex items-center gap-1">
+    <span className="text-red-400">⚠</span> {msg}
+  </p>
+);
+
 /* ── Custom Dropdown ──────────────────────────────────────────────────────── */
-function CustomDropdown({ label, value, onChange, options, placeholder, required, disabled }) {
+function CustomDropdown({ label, value, onChange, options, placeholder, disabled, onInfo, error }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -29,8 +37,18 @@ function CustomDropdown({ label, value, onChange, options, placeholder, required
   return (
     <div>
       {label && (
-        <label className="text-white/60 text-xs font-body font-medium mb-1.5 block">
-          {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+        <label className="text-white/60 text-xs font-body font-medium mb-1.5 flex items-center gap-1.5">
+          {label}
+          {onInfo && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onInfo(); }}
+              className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors shrink-0"
+              title="Why is this field here?"
+            >
+              <HelpCircle size={10} className="text-white/60" />
+            </button>
+          )}
         </label>
       )}
       <div ref={ref} className="relative">
@@ -39,7 +57,10 @@ function CustomDropdown({ label, value, onChange, options, placeholder, required
           disabled={disabled}
           onClick={() => !disabled && setOpen(o => !o)}
           className="field-dark w-full text-left flex items-center justify-between gap-2"
-          style={disabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+          style={{
+            ...(disabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}),
+            ...(error ? errorBorder : {}),
+          }}
         >
           {value
             ? <span className="text-white text-sm">{value}</span>
@@ -61,6 +82,7 @@ function CustomDropdown({ label, value, onChange, options, placeholder, required
           </div>
         )}
       </div>
+      {error && errorMsg(error)}
     </div>
   );
 }
@@ -136,39 +158,111 @@ function ChildSearchRow({ child, allStudents, onChange, onRemove, index }) {
 }
 
 /* ── Text Field ───────────────────────────────────────────────────────────── */
-function Field({ label, value, onChange, placeholder, type = 'text', disabled = false, note, required, readOnly }) {
+function Field({ label, value, onChange, placeholder, type = 'text', disabled = false, note, readOnly, error }) {
   return (
     <div>
       {label && (
         <label className="text-white/60 text-xs font-body font-medium mb-1.5 block">
-          {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+          {label}
         </label>
       )}
       <input
         className={`field-dark ${disabled || readOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+        style={error ? errorBorder : {}}
         type={type}
         value={value || ''}
         onChange={onChange}
         placeholder={placeholder}
         disabled={disabled || readOnly}
       />
-      {note && <p className="text-white/30 text-xs font-body mt-1">{note}</p>}
+      {error && errorMsg(error)}
+      {note && !error && <p className="text-white/30 text-xs font-body mt-1">{note}</p>}
     </div>
   );
 }
 
 /* ── SelectField (native) ─────────────────────────────────────────────────── */
-function SelectField({ label, value, onChange, options, required }) {
+function SelectField({ label, value, onChange, options, error }) {
+  const bgStyle = {
+    backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='rgba(255,255,255,0.4)' d='M6 8L1 3h10z'/%3E%3C/svg%3E\")",
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 14px center',
+    ...(error ? errorBorder : {}),
+  };
   return (
     <div>
       <label className="text-white/60 text-xs font-body font-medium mb-1.5 block">
-        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+        {label}
       </label>
-      <select className="field-dark appearance-none" value={value} onChange={onChange}
-        style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='rgba(255,255,255,0.4)' d='M6 8L1 3h10z'/%3E%3C/svg%3E\")", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center' }}>
+      <select className="field-dark appearance-none" value={value} onChange={onChange} style={bgStyle}>
         <option value="">Select…</option>
         {options.map(o => <option key={o} value={o}>{o}</option>)}
       </select>
+      {error && errorMsg(error)}
+    </div>
+  );
+}
+
+/* ── Blood Group Info Modal ───────────────────────────────────────────────── */
+function BloodGroupInfoModal({ onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end" onClick={onClose}>
+      <div
+        className="w-full rounded-t-3xl p-6 flex flex-col gap-4"
+        style={{ background: '#141829', border: '1px solid rgba(255,255,255,0.1)' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="font-display font-bold text-white text-lg">Why Blood Type?</h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-white/8 flex items-center justify-center">
+            <X size={16} className="text-white/60" />
+          </button>
+        </div>
+
+        <div className="flex items-start gap-3 p-4 rounded-2xl"
+          style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          <div className="w-8 h-8 rounded-xl bg-red-500/15 flex items-center justify-center shrink-0 mt-0.5">
+            <Heart size={15} className="text-red-400" />
+          </div>
+          <p className="text-white/70 text-sm font-body leading-relaxed">
+            This field is <span className="text-white font-semibold">optional</span>, but we strongly
+            recommend providing it for your child's safety.
+          </p>
+        </div>
+
+        <p className="text-white/60 text-sm font-body leading-relaxed">
+          In a medical emergency at school — such as an accident, injury, or sudden illness — first
+          responders may need to act quickly. Knowing a student's blood type allows medical staff to:
+        </p>
+
+        <div className="flex flex-col gap-2">
+          {[
+            'Prepare compatible blood for transfusions without delay',
+            'Avoid life-threatening transfusion reactions',
+            'Make faster, safer decisions on-site when every second counts',
+          ].map((item, i) => (
+            <div key={i} className="flex items-start gap-2.5">
+              <div className="w-5 h-5 rounded-full bg-red-500/15 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-red-400 text-xs font-bold">{i + 1}</span>
+              </div>
+              <p className="text-white/60 text-sm font-body leading-relaxed">{item}</p>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-white/40 text-xs font-body leading-relaxed">
+          This simple piece of information could make a life-saving difference. If you are unsure of the
+          student's blood type, you may leave this blank and update it later.
+        </p>
+
+        <button
+          onClick={onClose}
+          className="w-full py-3.5 rounded-2xl font-display font-bold text-sm transition-all"
+          style={{ background: 'linear-gradient(135deg, #F4A334, #f97316)', color: '#0a0f2c' }}
+        >
+          Got it
+        </button>
+      </div>
     </div>
   );
 }
@@ -229,6 +323,11 @@ export default function CreateEditUser() {
   const [generatingEnrol, setGeneratingEnrol] = useState(false);
   const [linkedParent, setLinkedParent]       = useState(null);
   const [showParentModal, setShowParentModal] = useState(false);
+  const [showBloodGroupInfo, setShowBloodGroupInfo] = useState(false);
+  const [errors, setErrors]                   = useState({});
+
+  // Ref guard to prevent concurrent enrol-number generation calls
+  const enrolGuardRef = useRef(false);
 
   const [form, setForm] = useState({
     givenName: '', familyName: '', displayName: '',
@@ -242,13 +341,16 @@ export default function CreateEditUser() {
   // Derived values
   const standardLabel = form.category === 'Secondary' ? 'Form' : 'Standard';
   const standardOpts  = form.category === 'Secondary' ? ['One', 'Two', 'Three'] : ['1','2','3','4','5','6'];
-  const standardPH    = form.category === 'Secondary' ? 'Select Form' : 'Select standard';
+  const standardPH    = form.category === 'Secondary' ? 'Select Form' : 'Select Standard';
   const showClassFields = isStudent && (form.category === 'Primary' || form.category === 'Secondary');
 
-  const readyForEnrol = isStudent && !isEdit &&
+  // All prerequisite student fields are filled → ready to generate enrol no.
+  const readyForEnrol = !!(
+    isStudent && !isEdit &&
     form.givenName.trim() && form.familyName.trim() &&
     form.email.trim() && form.gender && form.category &&
-    (!showClassFields || (form.standard && form.division));
+    (!showClassFields || (form.standard && form.division))
+  );
 
   // Load students for parent child-search
   useEffect(() => {
@@ -281,39 +383,79 @@ export default function CreateEditUser() {
     })();
   }, [editId]);
 
-  // Auto-generate enrol number when prerequisite fields are filled
+  // ── Auto-generate enrol number ──────────────────────────────────────────
+  // Runs when readyForEnrol changes to true OR when enrollNo is cleared
+  // (e.g. after category change). A ref guard prevents duplicate calls.
   useEffect(() => {
-    if (!readyForEnrol || form.enrollNo || generatingEnrol) return;
+    if (!readyForEnrol) {
+      // Reset the guard so a fresh attempt can fire next time conditions are met
+      enrolGuardRef.current = false;
+      return;
+    }
+    if (form.enrollNo || enrolGuardRef.current) return;
+
+    enrolGuardRef.current = true;
     setGeneratingEnrol(true);
     adminGetNextEnrolNo()
       .then(next => setForm(f => ({ ...f, enrollNo: next })))
-      .catch(() => {})
+      .catch(() => { enrolGuardRef.current = false; })
       .finally(() => setGeneratingEnrol(false));
-  }, [readyForEnrol]);
+  }, [readyForEnrol, form.enrollNo]);
 
-  const set    = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
-  const setVal = k => v => setForm(f => ({ ...f, [k]: v }));
+  const set    = k => e => { setForm(f => ({ ...f, [k]: e.target.value })); setErrors(er => ({ ...er, [k]: '' })); };
+  const setVal = k => v => { setForm(f => ({ ...f, [k]: v }));              setErrors(er => ({ ...er, [k]: '' })); };
 
-  const setCategory = (val) =>
+  const setCategory = (val) => {
+    enrolGuardRef.current = false; // allow fresh generation after category change
     setForm(f => ({ ...f, category: val, standard: '', division: '', enrollNo: '' }));
+    setErrors(er => ({ ...er, category: '', standard: '', division: '' }));
+  };
 
   const updateChild = (i, data) => setChildren(prev => prev.map((c, j) => j === i ? { ...c, ...data } : c));
   const addChild    = () => setChildren(prev => [...prev, { studentId: '', studentName: '', studentClass: '' }]);
   const removeChild = (i) => setChildren(prev => prev.filter((_, j) => j !== i));
 
+  /* ── Field-level validation ─────────────────────────────────────────────── */
+  const BLANK = 'This field must not be left blank';
+
   const handleSave = async () => {
+    const newErrors = {};
+
     if (isStudent) {
-      if (!form.givenName.trim())  { toast.error('Given Name is required');  return; }
-      if (!form.familyName.trim()) { toast.error('Family Name is required'); return; }
-      if (!form.email.trim())      { toast.error('Email is required');        return; }
-      if (!form.gender)            { toast.error('Gender is required');       return; }
+      if (!form.givenName.trim())   newErrors.givenName   = BLANK;
+      if (!form.familyName.trim())  newErrors.familyName  = BLANK;
+      if (!form.email.trim())       newErrors.email       = BLANK;
+      if (!form.gender)             newErrors.gender      = BLANK;
+      if (!form.category)           newErrors.category    = BLANK;
+      if (showClassFields) {
+        if (!form.standard)         newErrors.standard    = BLANK;
+        if (!form.division)         newErrors.division    = BLANK;
+      }
+      if (!form.dob)                newErrors.dob         = BLANK;
+      if (!form.mobileNo.trim())    newErrors.mobileNo    = BLANK;
+      // bloodGroup intentionally skipped — it is optional
     } else {
-      if (!form.email.trim())       { toast.error('Email is required'); return; }
-      if (!form.displayName.trim()) { toast.error('Name is required');  return; }
+      if (!form.title)              newErrors.title       = BLANK;
+      if (!form.displayName.trim()) newErrors.displayName = BLANK;
+      if (!form.email.trim())       newErrors.email       = BLANK;
+      if (isTeacher) {
+        if (!form.subject)          newErrors.subject     = BLANK;
+        if (!form.mobileNo.trim())  newErrors.mobileNo    = BLANK;
+      }
+      if (isParent) {
+        if (!form.mobileNo.trim())  newErrors.mobileNo    = BLANK;
+        if (!children.some(c => c.studentId)) newErrors.children = 'Please select at least one child';
+      }
     }
-    if ((isTeacher || isParent) && !form.title) { toast.error('Title is required'); return; }
-    if (isParent && !isEdit && !children.some(c => c.studentId)) {
-      toast.error('Please select at least one child'); return;
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      // Scroll to the first error field
+      const firstKey = Object.keys(newErrors)[0];
+      setTimeout(() => {
+        document.getElementById(`field-${firstKey}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 80);
+      return;
     }
 
     setLoading(true);
@@ -345,7 +487,7 @@ export default function CreateEditUser() {
           title: form.title,
           isATeacher: isTeacher,
           relationshipType: isParent ? form.relationshipType : undefined,
-          subject: form.subject.trim(),
+          subject: isTeacher ? form.subject : undefined,
           mobileNo: form.mobileNo.trim(),
           children: isParent ? validChildren : [],
         };
@@ -425,27 +567,44 @@ export default function CreateEditUser() {
           {/* ── STUDENT FIELDS ─────────────────────────────── */}
           {isStudent && (
             <>
-              <Field label="Given Name"   value={form.givenName}   onChange={set('givenName')}   placeholder="e.g. John"  required />
-              <Field label="Family Name"  value={form.familyName}  onChange={set('familyName')}  placeholder="e.g. Smith" required />
-              <Field label="Email Address" value={form.email} onChange={set('email')}
-                placeholder="student@example.com" type="email" disabled={isEdit}
-                note={isEdit ? 'Email cannot be changed' : 'Student will register using this email'} required />
+              <div id="field-givenName">
+                <Field label="Given Name" value={form.givenName} onChange={set('givenName')}
+                  placeholder="e.g. John" error={errors.givenName} />
+              </div>
 
-              <CustomDropdown label="Gender" value={form.gender} onChange={setVal('gender')}
-                options={GENDERS} placeholder="Select gender" required />
+              <div id="field-familyName">
+                <Field label="Family Name" value={form.familyName} onChange={set('familyName')}
+                  placeholder="e.g. Smith" error={errors.familyName} />
+              </div>
 
-              <CustomDropdown label="Category" value={form.category} onChange={setCategory}
-                options={['Primary', 'Secondary']} placeholder="Select category" required />
+              <div id="field-email">
+                <Field label="Email Address" value={form.email} onChange={set('email')}
+                  placeholder="student@example.com" type="email" disabled={isEdit}
+                  note={isEdit ? 'Email cannot be changed' : 'Student will register using this email'}
+                  error={errors.email} />
+              </div>
+
+              <div id="field-gender">
+                <CustomDropdown label="Gender" value={form.gender} onChange={setVal('gender')}
+                  options={GENDERS} placeholder="Select gender" error={errors.gender} />
+              </div>
+
+              <div id="field-category">
+                <CustomDropdown label="Category" value={form.category} onChange={setCategory}
+                  options={['Primary', 'Secondary']} placeholder="Select category" error={errors.category} />
+              </div>
 
               {showClassFields && (
                 <div className="flex gap-3">
-                  <div className="flex-1">
+                  <div className="flex-1" id="field-standard">
                     <CustomDropdown label={standardLabel} value={form.standard}
-                      onChange={setVal('standard')} options={standardOpts} placeholder={standardPH} />
+                      onChange={setVal('standard')} options={standardOpts} placeholder={standardPH}
+                      error={errors.standard} />
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1" id="field-division">
                     <CustomDropdown label="Class" value={form.division}
-                      onChange={setVal('division')} options={['A', 'B']} placeholder="Select Class" />
+                      onChange={setVal('division')} options={['A', 'B']} placeholder="Select Class"
+                      error={errors.division} />
                   </div>
                 </div>
               )}
@@ -456,7 +615,7 @@ export default function CreateEditUser() {
                 <div className="relative">
                   <input className="field-dark opacity-60 cursor-not-allowed w-full" readOnly
                     value={generatingEnrol ? 'Generating…' : (form.enrollNo || '')}
-                    placeholder="This is auto-generated"
+                    placeholder="Auto-generated once fields above are filled"
                     style={{
                       fontStyle: form.enrollNo || generatingEnrol ? 'normal' : 'italic',
                       color: form.enrollNo ? undefined : 'rgba(255,255,255,0.35)',
@@ -467,22 +626,33 @@ export default function CreateEditUser() {
                 </div>
               </div>
 
-              {/* Date of Birth — calendar */}
-              <div>
+              {/* Date of Birth */}
+              <div id="field-dob">
                 <label className="text-white/60 text-xs font-body font-medium mb-1.5 block">Date of Birth</label>
-                <input className="field-dark" type="date" value={form.dob || ''}
-                  onChange={set('dob')} style={{ colorScheme: 'dark' }} />
+                <input
+                  className="field-dark"
+                  type="date"
+                  value={form.dob || ''}
+                  onChange={e => { set('dob')(e); setErrors(er => ({ ...er, dob: '' })); }}
+                  style={{ colorScheme: 'dark', ...(errors.dob ? errorBorder : {}) }}
+                />
+                {errors.dob && errorMsg(errors.dob)}
               </div>
 
-              <CustomDropdown label="Blood Group" value={form.bloodGroup} onChange={setVal('bloodGroup')}
+              {/* Blood Group — optional, with info icon */}
+              <CustomDropdown
+                label="Blood Group"
+                value={form.bloodGroup}
+                onChange={setVal('bloodGroup')}
                 options={['A+', 'A−', 'B+', 'B−', 'O+', 'O−', 'AB+', 'AB−']}
-                placeholder="Select blood type" />
+                placeholder="Select blood type"
+                onInfo={() => setShowBloodGroupInfo(true)}
+              />
 
-              <div>
-                <label className="text-white/60 text-xs font-body font-medium mb-1.5 block">Phone No.</label>
-                <input className="field-dark" type="tel" value={form.mobileNo || ''}
-                  onChange={set('mobileNo')} placeholder="+677 xx xxxxx"
-                  style={{ fontStyle: form.mobileNo ? 'normal' : 'italic' }} />
+              {/* Phone No. */}
+              <div id="field-mobileNo">
+                <Field label="Phone No." value={form.mobileNo} onChange={set('mobileNo')}
+                  placeholder="+677 xx xxxxx" type="tel" error={errors.mobileNo} />
               </div>
             </>
           )}
@@ -490,16 +660,27 @@ export default function CreateEditUser() {
           {/* ── TEACHER / PARENT FIELDS ────────────────────── */}
           {(isTeacher || isParent) && (
             <>
-              <SelectField label="Title" value={form.title} onChange={set('title')} options={TITLES} required />
-              <Field label="Full Name" value={form.displayName} onChange={set('displayName')} placeholder="e.g. John Smith" required />
-              <Field label="Email Address" value={form.email} onChange={set('email')}
-                placeholder="user@example.com" type="email" disabled={isEdit}
-                note={isEdit ? 'Email cannot be changed' : 'User will register using this email'} required />
+              <div id="field-title">
+                <SelectField label="Title" value={form.title} onChange={set('title')}
+                  options={TITLES} error={errors.title} />
+              </div>
+
+              <div id="field-displayName">
+                <Field label="Full Name" value={form.displayName} onChange={set('displayName')}
+                  placeholder="e.g. John Smith" error={errors.displayName} />
+              </div>
+
+              <div id="field-email">
+                <Field label="Email Address" value={form.email} onChange={set('email')}
+                  placeholder="user@example.com" type="email" disabled={isEdit}
+                  note={isEdit ? 'Email cannot be changed' : 'User will register using this email'}
+                  error={errors.email} />
+              </div>
 
               {isParent && (
                 <div>
                   <label className="text-white/60 text-xs font-body font-medium mb-2 block">
-                    Relationship to Student<span className="text-red-400 ml-0.5">*</span>
+                    Relationship to Student
                   </label>
                   <div className="flex gap-2">
                     {RELATIONSHIP_TYPES.map(rt => (
@@ -518,30 +699,46 @@ export default function CreateEditUser() {
 
               {isTeacher && (
                 <>
-                  <Field label="Subject" value={form.subject} onChange={set('subject')} placeholder="e.g. Mathematics" />
-                  <Field label="Mobile No." value={form.mobileNo} onChange={set('mobileNo')} placeholder="+677 xx xxxxx" type="tel" />
+                  {/* Subject — dropdown with all school subjects */}
+                  <div id="field-subject">
+                    <CustomDropdown
+                      label="Subject"
+                      value={form.subject}
+                      onChange={setVal('subject')}
+                      options={SUBJECTS}
+                      placeholder="Select Subject"
+                      error={errors.subject}
+                    />
+                  </div>
+
+                  <div id="field-mobileNo">
+                    <Field label="Mobile No." value={form.mobileNo} onChange={set('mobileNo')}
+                      placeholder="+677 xx xxxxx" type="tel" error={errors.mobileNo} />
+                  </div>
                 </>
               )}
 
               {isParent && (
                 <div>
                   <label className="text-white/60 text-xs font-body font-medium mb-2 block">
-                    Child / Children at this school<span className="text-red-400 ml-0.5">*</span>
+                    Child / Children at this school
                   </label>
-                  <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-3" id="field-children">
                     {children.map((child, i) => (
                       <ChildSearchRow key={i} index={i} child={child} allStudents={allStudents}
                         onChange={data => updateChild(i, data)}
                         onRemove={() => children.length > 1 ? removeChild(i) : null} />
                     ))}
+                    {errors.children && errorMsg(errors.children)}
                     <button type="button" onClick={addChild}
                       className="flex items-center gap-2 text-sm font-display font-semibold py-3 px-4 rounded-2xl transition-colors"
                       style={{ background: 'rgba(232,69,69,0.1)', border: '1px dashed rgba(232,69,69,0.4)', color: '#E84545' }}>
                       <Plus size={15} />Add another child
                     </button>
                   </div>
-                  <div className="mt-3">
-                    <Field label="Mobile No." value={form.mobileNo} onChange={set('mobileNo')} placeholder="+677 xx xxxxx" type="tel" />
+                  <div className="mt-3" id="field-mobileNo">
+                    <Field label="Mobile No." value={form.mobileNo} onChange={set('mobileNo')}
+                      placeholder="+677 xx xxxxx" type="tel" error={errors.mobileNo} />
                   </div>
                 </div>
               )}
@@ -575,6 +772,10 @@ export default function CreateEditUser() {
 
       {showParentModal && (
         <LinkedParentModal parent={linkedParent} onClose={() => setShowParentModal(false)} />
+      )}
+
+      {showBloodGroupInfo && (
+        <BloodGroupInfoModal onClose={() => setShowBloodGroupInfo(false)} />
       )}
     </div>
   );
