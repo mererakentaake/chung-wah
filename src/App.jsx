@@ -1,5 +1,5 @@
 // src/App.jsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { ROUTES, USER_TYPES } from './utils/constants';
@@ -60,6 +60,15 @@ function AdminRoute({ children }) {
   return children;
 }
 
+function TeacherOrAdminRoute({ children }) {
+  const { user, loading, userType } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to={ROUTES.WELCOME} replace />;
+  if (userType === USER_TYPES.UNKNOWN) return <Navigate to={ROUTES.LOGIN} replace />;
+  if (userType !== USER_TYPES.ADMIN && userType !== USER_TYPES.TEACHER) return <Navigate to={ROUTES.HOME} replace />;
+  return children;
+}
+
 function PublicRoute({ children }) {
   const { user, loading, userType } = useAuth();
   if (loading) return <LoadingScreen />;
@@ -71,6 +80,18 @@ function PublicRoute({ children }) {
 
 export default function App() {
   const { loading } = useAuth();
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    const handleBack = () => {
+      if (window.history.length > 1) {
+        window.history.back();
+      }
+    };
+    document.addEventListener('backbutton', handleBack);
+    return () => document.removeEventListener('backbutton', handleBack);
+  }, []);
+
   if (loading) return <LoadingScreen />;
 
   return (
@@ -106,8 +127,8 @@ export default function App() {
       <Route path={ROUTES.ADMIN_DASHBOARD}  element={<AdminRoute><AdminDashboard /></AdminRoute>} />
       <Route path={ROUTES.ADMIN_STUDENTS}   element={<AdminRoute><ManageStudents /></AdminRoute>} />
       <Route path={ROUTES.ADMIN_TEACHERS}   element={<AdminRoute><ManageTeachers /></AdminRoute>} />
-      <Route path={ROUTES.ADMIN_CREATE_USER} element={<AdminRoute><CreateEditUser /></AdminRoute>} />
-      <Route path={ROUTES.ADMIN_EDIT_USER}  element={<AdminRoute><CreateEditUser /></AdminRoute>} />
+      <Route path={ROUTES.ADMIN_CREATE_USER} element={<TeacherOrAdminRoute><CreateEditUser /></TeacherOrAdminRoute>} />
+      <Route path={ROUTES.ADMIN_EDIT_USER}  element={<TeacherOrAdminRoute><CreateEditUser /></TeacherOrAdminRoute>} />
 
       <Route path="*" element={<Navigate to={ROUTES.WELCOME} replace />} />
     </Routes>
