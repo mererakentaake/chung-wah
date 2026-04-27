@@ -15,6 +15,16 @@ import { DashboardCardFull, DashboardCardHalf, DashboardCardBanner } from '../co
 import { getProfile, getGuardianRequests, respondToGuardianRequest } from '../services/firestore';
 import toast from 'react-hot-toast';
 
+/* ─── Time-based greeting ────────────────────────────────────────────────── */
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+
+
 /* ─── Guardian Confirmation Modal ───────────────────────────────────────── */
 function GuardianModal({ requests, onDone }) {
   const [index, setIndex] = useState(0);
@@ -109,14 +119,14 @@ function TeacherDashboard({ user, userType }) {
   return (
     <div className="flex flex-col gap-3 pb-2 page-enter">
       <div className="relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-100">
-        <p className="text-gray-400 text-sm font-body mb-1">Good morning 👋</p>
-        <h2 className="font-display font-extrabold text-gray-900 text-xl">{user?.displayName || 'Welcome back'}</h2>
+        <p className="text-gray-400 text-sm font-body mb-1">{getGreeting()} 👋</p>
+        <h2 className="font-display font-extrabold text-gray-900 text-xl">{user?.displayName || 'Welcome'}</h2>
         <p className="text-gray-400 text-xs font-body mt-0.5">
           {userType === USER_TYPES.TEACHER ? `Teacher${user?.subject ? ` • ${user.subject}` : ''}` : 'Parent'}{user?.standard ? ` • Std ${user.standard}` : ''}
         </p>
       </div>
 
-      <DashboardCardFull icon={Users} label="Children / Students" color="#8b5cf6" route={ROUTES.CHILDREN} description="View your connected students" />
+      <DashboardCardFull icon={Users} label="Students" color="#8b5cf6" route={ROUTES.CHILDREN} description="View your connected students" />
       <div className="flex gap-3">
         <DashboardCardHalf icon={CreditCard}    label="E-Card"        color="#f97316" route={ROUTES.ECARD} />
         <DashboardCardHalf icon={Clock}         label="Time Table"    color="#6366f1" route={ROUTES.TIMETABLE} />
@@ -126,6 +136,10 @@ function TeacherDashboard({ user, userType }) {
         <>
           <DashboardCardFull icon={ClipboardList} label="Student Reports" color="#22c55e" route={ROUTES.STUDENT_REPORTS} description="Submit weekly marks & behaviour reports" />
           <DashboardCardFull icon={Users} label="Link Guardian to Student" color="#e84545" route={ROUTES.LINK_GUARDIAN} description="Assign a parent or guardian to a student" />
+          <div className="flex gap-3">
+            <DashboardCardHalf icon={GraduationCap} label="Register Student" color="#F4A334" route={`${ROUTES.ADMIN_CREATE_USER}?type=student`} />
+            <DashboardCardHalf icon={Users} label="Register Parent" color="#E84545" route={`${ROUTES.ADMIN_CREATE_USER}?type=parent`} />
+          </div>
         </>
       )}
 
@@ -153,7 +167,7 @@ function StudentDashboard({ user }) {
   return (
     <div className="flex flex-col gap-3 pb-2 page-enter">
       <div className="relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br from-orange-50 to-yellow-50 border border-orange-100">
-        <p className="text-gray-400 text-sm font-body mb-1">Good morning 👋</p>
+        <p className="text-gray-400 text-sm font-body mb-1">{getGreeting()} 👋</p>
         <h2 className="font-display font-extrabold text-gray-900 text-xl">{user?.displayName || 'Student'}</h2>
         <p className="text-gray-400 text-xs font-body mt-0.5">
           {user?.standard && user?.division ? `Std ${user.standard} – ${user.division}` : 'Student'}
