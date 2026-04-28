@@ -18,8 +18,6 @@ export function AuthProvider({ children }) {
     setUserType(type);
     setSchoolCode(code);
     setUserId(uid);
-    // Persist to localStorage so firestore.js helper functions can read them.
-    // firestore.js reads schoolCode/userId via localStorage getters, not React state.
     localStorage.setItem('schoolCode', code || '');
     localStorage.setItem('userId', uid || '');
     setTimeout(() => { authSetDirectly.current = false; }, 3000);
@@ -44,7 +42,6 @@ export function AuthProvider({ children }) {
         return;
       }
 
-      // Restore session via REST API (bypasses Firestore SDK cache issues)
       try {
         const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
         const idToken = await firebaseUser.getIdToken();
@@ -60,7 +57,6 @@ export function AuthProvider({ children }) {
             setUserType(type);
             setSchoolCode(code || '');
             setUserId(uid || firebaseUser.uid);
-            // Keep localStorage in sync so firestore.js functions always have valid values
             localStorage.setItem('schoolCode', code || '');
             localStorage.setItem('userId', uid || firebaseUser.uid);
             setLoading(false);
@@ -79,13 +75,18 @@ export function AuthProvider({ children }) {
     return unsub;
   }, []);
 
-  const isAdmin = userType === USER_TYPES.ADMIN;
+  const isAdmin    = userType === USER_TYPES.ADMIN;
+  const isAccounts = userType === USER_TYPES.ACCOUNTS;
+  const isTeacher  = userType === USER_TYPES.TEACHER;
+  const isStudent  = userType === USER_TYPES.STUDENT;
+  const isParent   = userType === USER_TYPES.PARENT;
 
   return (
     <AuthContext.Provider value={{
       user, loading, userType, schoolCode, userId,
       setUserType, setSchoolCode, setUserId,
-      setAuthState, isAdmin,
+      setAuthState,
+      isAdmin, isAccounts, isTeacher, isStudent, isParent,
     }}>
       {children}
     </AuthContext.Provider>
