@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Users, Megaphone, Calendar, FileText, Bus, BookOpen,
   Baby, CreditCard, Clock, FlaskConical, DollarSign,
-  Heart, Stethoscope, Syringe, Tag, Plus, GraduationCap, ClipboardList,
+  Heart, Stethoscope, Syringe, Tag, GraduationCap, ClipboardList,
   CheckCircle, XCircle, ChevronRight, BarChart3, TrendingUp, Receipt
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -28,8 +28,10 @@ function GuardianModal({ requests, onDone }) {
   const [loading, setLoading] = useState(false);
   if (requests.length === 0) return null;
   const req = requests[index];
-  const pronoun = req.parentTitle === 'Mr' ? 'his' : 'her';
-  const relationship = req.relationshipType || 'Parent';
+  const isMale     = req.parentTitle === 'Mr';
+  const pronoun    = isMale ? 'he' : 'she';
+  const honorific  = isMale ? 'Mr' : req.parentTitle === 'Mrs' ? 'Mrs' : 'Miss';
+  const relationship = req.relationshipType || 'guardian';
   const name = `${req.parentTitle ? req.parentTitle + ' ' : ''}${req.parentName}`;
 
   const respond = async (accepted) => {
@@ -63,8 +65,8 @@ function GuardianModal({ requests, onDone }) {
         <div className="text-center">
           <p className="text-white font-display font-bold text-lg leading-snug mb-2">Confirmation Required</p>
           <p className="text-white/60 text-sm font-body leading-relaxed">
-            <span className="text-white font-semibold">{name}</span> claims you are{' '}
-            {pronoun} <span className="text-yellow-400 font-semibold">{relationship.toLowerCase()}</span>.
+            <span className="text-white font-semibold">{name}</span> claims that {pronoun} is your{' '}
+            <span className="text-yellow-400 font-semibold">{relationship.toLowerCase()}</span>.
             Please confirm if this is correct.
           </p>
         </div>
@@ -221,24 +223,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <TopBar title={title}>
-        <button onClick={() => navigate(ROUTES.PROFILE)}
-          className="w-9 h-9 rounded-xl overflow-hidden border-2 border-yellow-300 shrink-0">
-          {profile?.photoUrl && profile.photoUrl !== 'default' ? (
-            <img src={profile.photoUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-yellow-400 to-orange-400 flex items-center justify-center">
-              <GraduationCap size={16} className="text-white" />
-            </div>
-          )}
-        </button>
-        {isTeacher && (
-          <button onClick={() => navigate(ROUTES.ANNOUNCEMENTS + '?create=1')}
-            className="w-9 h-9 rounded-xl bg-red-500 flex items-center justify-center shadow-md">
-            <Plus size={18} className="text-white" />
-          </button>
-        )}
-      </TopBar>
+      <TopBar title={title} />
 
       <div className="flex-1 overflow-y-auto px-4 pt-3 pb-28">
         {isStudent  && <StudentDashboard user={profile} />}
