@@ -1,16 +1,82 @@
 // src/pages/Children.jsx
 import React, { useState, useEffect } from 'react';
-import { Users, Clock, CheckCircle, XCircle, BookOpen, ClipboardList } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Users, Clock, CheckCircle, XCircle, BookOpen, ClipboardList,
+  DollarSign, ChevronRight
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getParentGuardianLinks, adminGetStudents } from '../services/firestore';
+import { getParentGuardianLinks, adminGetStudents, getStudentFees, getStudentAttendance } from '../services/firestore';
 import TopBar from '../components/layout/TopBar';
 import BottomNav from '../components/layout/BottomNav';
-import { USER_TYPES } from '../utils/constants';
+import { USER_TYPES, ROUTES } from '../utils/constants';
+
+function AttendanceMiniBar({ studentId }) {
+  const [records, setRecords] = useState([]);
+  useEffect(() => {
+    const unsub = getStudentAttendance(studentId, setRecords);
+    return unsub;
+  }, [studentId]);
+
+  const last10 = records.slice(0, 10).reverse();
+  const presentCount = records.filter(r => r.status === 'present').length;
+  const pct = records.length > 0 ? Math.round((presentCount / records.length) * 100) : null;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-white/5">
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-white/40 text-xs font-body">Recent Attendance</p>
+        {pct !== null && (
+          <span className={`text-xs font-display font-bold ${pct >= 80 ? 'text-emerald-400' : pct >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+            {pct}%
+          </span>
+        )}
+      </div>
+      <div className="flex gap-1">
+        {last10.length === 0 && <p className="text-white/20 text-xs font-body">No records yet</p>}
+        {last10.map((r, i) => (
+          <div key={i} className={`w-5 h-5 rounded-md flex items-center justify-center text-[8px] font-bold
+            ${r.status === 'present' ? 'bg-emerald-500/20 text-emerald-400'
+              : r.status === 'late' ? 'bg-yellow-500/20 text-yellow-400'
+              : r.status === 'excused' ? 'bg-blue-500/20 text-blue-400'
+              : 'bg-red-500/20 text-red-400'}`}>
+            {r.status === 'present' ? 'P' : r.status === 'late' ? 'L' : r.status === 'excused' ? 'E' : 'A'}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FeeMiniStatus({ studentId }) {
+  const [fees, setFees] = useState([]);
+  useEffect(() => {
+    const unsub = getStudentFees(studentId, setFees);
+    return unsub;
+  }, [studentId]);
+
+  const totalAmount = fees.reduce((s, f) => s + (f.amount || 0), 0);
+  const totalPaid = fees.reduce((s, f) => s + (f.totalPaid || 0), 0);
+  const balance = totalAmount - totalPaid;
+  if (fees.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-2 mt-2">
+      <DollarSign size={12} className="text-yellow-400 shrink-0" />
+      <span className="text-white/50 text-xs font-body">
+        Fees: <span className={balance > 0 ? 'text-red-400' : 'text-emerald-400'}>
+          {balance > 0 ? `RM ${balance.toFixed(2)} outstanding` : 'All paid'}
+        </span>
+      </span>
+    </div>
+  );
+}
 
 function ChildCard({ link, studentData }) {
-  const isPending = link.status === 'pending';
+  const navigate = useNavigate();
+  const isPending   = link.status === 'pending';
   const isConfirmed = link.status === 'confirmed';
-  const isRejected = link.status === 'rejected';
+  const isRejected  = link.status === 'rejected';
 
   const name = link.studentName || studentData?.displayName || 'Student';
   const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -35,13 +101,10 @@ function ChildCard({ link, studentData }) {
             <p className="text-white/40 text-sm font-body">{link.studentClass}</p>
           )}
 
-          {/* Status badge */}
           {isPending && (
             <div className="flex items-center gap-1.5 mt-1.5">
               <Clock size={12} className="text-yellow-400" />
-              <span className="text-yellow-400 text-xs font-body font-semibold">
-                Awaiting student confirmation
-              </span>
+              <span className="text-yellow-400 text-xs font-body font-semibold">Awaiting student confirmation</span>
             </div>
           )}
           {isConfirmed && (
@@ -59,16 +122,23 @@ function ChildCard({ link, studentData }) {
         </div>
       </div>
 
-      {/* Confirmed child — quick actions */}
       {isConfirmed && studentData && (
-        <div className="flex gap-2 mt-4 pt-3 border-t border-white/5">
-          <button className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-display font-semibold text-white/70 bg-white/5 hover:bg-white/10 transition-colors">
-            <BookOpen size={13} /> View Profile
-          </button>
-          <button className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-display font-semibold text-white/70 bg-white/5 hover:bg-white/10 transition-colors">
-            <ClipboardList size={13} /> Reports
-          </button>
-        </div>
+        <>
+          <FeeMiniStatus studentId={link.studentDocId} />
+          <AttendanceMiniBar studentId={link.studentDocId} />
+          <div className="flex gap-2 mt-4 pt-3 border-t border-white/5">
+            <button
+              onClick={() => navigate(`${ROUTES.ATTENDANCE_RECORDS}?studentId=${link.studentDocId}&name=${encodeURIComponent(name)}`)}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-display font-semibold text-white/70 bg-white/5 hover:bg-white/10 transition-colors">
+              <ClipboardList size={13} /> Attendance
+            </button>
+            <button
+              onClick={() => navigate(`${ROUTES.FEES}?studentId=${link.studentDocId}`)}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-display font-semibold text-white/70 bg-white/5 hover:bg-white/10 transition-colors">
+              <DollarSign size={13} /> Fees
+            </button>
+          </div>
+        </>
       )}
 
       {isPending && (
@@ -91,7 +161,6 @@ export default function Children() {
     setLoading(true);
     const unsub = getParentGuardianLinks(userId, async (newLinks) => {
       setLinks(newLinks);
-      // Load student profile data for confirmed links
       const confirmedIds = newLinks
         .filter(l => l.status === 'confirmed' && l.studentDocId)
         .map(l => l.studentDocId);
@@ -114,7 +183,7 @@ export default function Children() {
 
   return (
     <div className="min-h-screen mesh-bg flex flex-col">
-      <TopBar title="My Children" showBack />
+      <TopBar title={userType === USER_TYPES.TEACHER ? 'Linked Students' : 'My Children'} showBack />
       <div className="flex-1 overflow-y-auto px-4 pt-3 pb-28">
         {loading ? (
           <div className="flex flex-col gap-3 mt-2">
@@ -130,7 +199,6 @@ export default function Children() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {/* Summary */}
             <div className="flex gap-2 text-xs font-body">
               {confirmed.length > 0 && (
                 <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
@@ -143,16 +211,9 @@ export default function Children() {
                 </span>
               )}
             </div>
-
-            {confirmed.map(l => (
-              <ChildCard key={l.id} link={l} studentData={students[l.studentDocId]} />
-            ))}
-            {pending.map(l => (
-              <ChildCard key={l.id} link={l} studentData={null} />
-            ))}
-            {rejected.map(l => (
-              <ChildCard key={l.id} link={l} studentData={null} />
-            ))}
+            {confirmed.map(l => <ChildCard key={l.id} link={l} studentData={students[l.studentDocId]} />)}
+            {pending.map(l => <ChildCard key={l.id} link={l} studentData={null} />)}
+            {rejected.map(l => <ChildCard key={l.id} link={l} studentData={null} />)}
           </div>
         )}
       </div>
