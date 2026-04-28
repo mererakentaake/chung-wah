@@ -64,8 +64,6 @@ export const loginUser = async ({ email, password, schoolCode, userType }) => {
   try {
     credential = await signInWithEmailAndPassword(auth, email, password);
   } catch (err) {
-    // Pre-registration record exists but Firebase Auth account has not been created yet.
-    // The user must tap "Register" (not "Sign In") on their first login to set a password.
     if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
       throw new Error('NEEDS_REGISTRATION');
     }
@@ -99,8 +97,6 @@ export const registerUser = async ({ email, password, schoolCode, userType }) =>
     userId: docId,
   });
 
-  // Auto-seed the user's profile from their pre-registration data so their
-  // name, class, and other details appear immediately without manual entry.
   try {
     const pre = checkResult.userData;
     const profileData = { email: email.toLowerCase().trim() };
@@ -115,9 +111,7 @@ export const registerUser = async ({ email, password, schoolCode, userType }) =>
     if (pre.childName)   profileData.childName   = pre.childName;
     if (pre.childClass)  profileData.childClass  = pre.childClass;
     await setDoc(doc(db, 'schools', code, 'users', docId), profileData, { merge: true });
-  } catch (_) {
-    // Don't fail the registration if profile seeding fails
-  }
+  } catch (_) {}
 
   return credential.user;
 };
@@ -131,14 +125,12 @@ export const loginAdmin = async ({ email, password, schoolCode }) => {
   const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
   const headers = { Authorization: `Bearer ${idToken}` };
 
-  // Try UID lookup
   const uidRes = await fetch(`${base}/schools/${code}/admins/${uid}`, { headers });
   if (uidRes.ok) {
     await saveSession(uid, { userType: USER_TYPES.ADMIN, schoolCode: code, userId: uid });
     return { user: credential.user, adminData: {} };
   }
 
-  // Try email query
   const queryRes = await fetch(
     `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery?parent=projects/${projectId}/databases/(default)/documents/schools/${code}`,
     {
@@ -161,6 +153,48 @@ export const loginAdmin = async ({ email, password, schoolCode }) => {
 
   await signOut(auth);
   throw new Error('NOT_AN_ADMIN');
+};
+
+// Accounts login — checks schools/{code}/accountsUsers collection
+export const loginAccounts = async ({ email, password, schoolCode }) => {
+  const code = schoolCode.toUpperCase().trim();
+  const credential = await signInWithEmailAndPassword(auth, email, password);
+  const uid = credential.user.uid;
+  const idToken = await credential.user.getIdToken();
+  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+  const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+  const headers = { Authorization: `Bearer ${idToken}` };
+
+  // Try UID-based doc first
+  const uidRes = await fetch(`${base}/schools/${code}/accountsUsers/${uid}`, { headers });
+  if (uidRes.ok) {
+    await saveSession(uid, { userType: USER_TYPES.ACCOUNTS, schoolCode: code, userId: uid });
+    return { user: credential.user };
+  }
+
+  // Try email query
+  const queryRes = await fetch(
+    `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery?parent=projects/${projectId}/databases/(default)/documents/schools/${code}`,
+    {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: 'accountsUsers' }],
+          where: { fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL', value: { stringValue: email.toLowerCase().trim() } } },
+          limit: 1,
+        },
+      }),
+    }
+  );
+  const queryJson = await queryRes.json();
+  if (Array.isArray(queryJson) && queryJson[0]?.document) {
+    await saveSession(uid, { userType: USER_TYPES.ACCOUNTS, schoolCode: code, userId: uid });
+    return { user: credential.user };
+  }
+
+  await signOut(auth);
+  throw new Error('NOT_AN_ACCOUNTANT');
 };
 
 export const logoutUser = async () => {
