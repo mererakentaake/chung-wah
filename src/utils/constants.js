@@ -18,7 +18,7 @@ export const USER_COLORS = {
 };
 
 // Hardcoded school code — avoids exposing it in the login UI
-export const SCHOOL_CODE = import.meta.env.VITE_SCHOOL_CODE || 'CWES';
+export const SCHOOL_CODE = import.meta.env.VITE_SCHOOL_CODE || 'CHUNGWAH';
 
 export const ROUTES = {
   WELCOME: '/',
