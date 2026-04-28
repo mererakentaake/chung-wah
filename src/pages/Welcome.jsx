@@ -1,8 +1,35 @@
 // src/pages/Welcome.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, GraduationCap, BookOpen, Heart } from 'lucide-react';
 import { ROUTES } from '../utils/constants';
+
+// localStorage keys
+const KEY_HAS_LAUNCHED  = 'cw_has_launched';
+const KEY_MANUAL_LOGOUT = 'cw_manual_logout';
+
+/**
+ * Welcome greeting logic:
+ *   - First ever install open:         "Welcome !!!"
+ *   - Later opens (logged-out return): "Welcome Back!!!"
+ *   - Manually logged out same session: no welcome text
+ */
+function getWelcomeHeading() {
+  const manualLogout = sessionStorage.getItem(KEY_MANUAL_LOGOUT) === '1';
+  if (manualLogout) return null;
+  const hasLaunched = localStorage.getItem(KEY_HAS_LAUNCHED) === '1';
+  return hasLaunched ? 'Welcome Back!!!' : 'Welcome !!!';
+}
+
+/** Call after login to mark first launch as done */
+export function markLaunched() {
+  localStorage.setItem(KEY_HAS_LAUNCHED, '1');
+}
+
+/** Call on manual sign-out so the next visit to Welcome hides the heading */
+export function markManualLogout() {
+  sessionStorage.setItem(KEY_MANUAL_LOGOUT, '1');
+}
 
 const slides = [
   {
@@ -89,6 +116,12 @@ export default function Welcome() {
   const [current, setCurrent] = useState(0);
   const navigate = useNavigate();
   const slide = slides[current];
+  const heading = getWelcomeHeading();
+
+  // Persist that the app has been launched at least once
+  useEffect(() => {
+    localStorage.setItem(KEY_HAS_LAUNCHED, '1');
+  }, []);
 
   const next = () => {
     if (current < slides.length - 1) setCurrent(c => c + 1);
@@ -126,6 +159,15 @@ export default function Welcome() {
           </button>
         )}
       </div>
+
+      {/* Welcome heading — only on first slide */}
+      {heading && current === 0 && (
+        <div className="relative text-center px-6 pt-1 pb-2">
+          <p className="font-display font-extrabold text-white/90 text-2xl tracking-tight">
+            {heading}
+          </p>
+        </div>
+      )}
 
       {/* Content */}
       <div className="relative flex-1 flex flex-col items-center justify-center px-6 gap-8">
