@@ -1,16 +1,18 @@
 // src/pages/auth/Login.jsx
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, ShieldCheck, Calculator } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { loginUser, registerUser, loginAdmin } from '../../services/auth';
+import { loginUser, registerUser, loginAdmin, loginAccounts } from '../../services/auth';
 import { useAuth } from '../../context/AuthContext';
 import { USER_TYPES, ROUTES } from '../../utils/constants';
 
 const USER_OPTIONS = [
-  { label: 'Student',         value: USER_TYPES.STUDENT, color: '#F4A334' },
-  { label: 'Parent / Teacher',value: USER_TYPES.TEACHER, color: '#F9C61F' },
-  { label: 'Admin',           value: USER_TYPES.ADMIN,   color: '#a855f7' },
+  { label: 'Student',  value: USER_TYPES.STUDENT,  color: '#F4A334' },
+  { label: 'Teacher',  value: USER_TYPES.TEACHER,   color: '#F9C61F' },
+  { label: 'Parent',   value: USER_TYPES.PARENT,    color: '#E84545' },
+  { label: 'Accounts', value: USER_TYPES.ACCOUNTS,  color: '#10b981' },
+  { label: 'Admin',    value: USER_TYPES.ADMIN,      color: '#a855f7' },
 ];
 
 const ERROR_MSGS = {
@@ -18,6 +20,7 @@ const ERROR_MSGS = {
   'USER_NOT_PREREGISTERED':   'Your email has not been pre-registered by the school admin.',
   'NEEDS_REGISTRATION':       'Your account is pre-registered but not yet activated. Switch to "Register" below and set your password to activate it.',
   'NOT_AN_ADMIN':             'This account does not have admin access for this school.',
+  'NOT_AN_ACCOUNTANT':        'This account does not have accounts access for this school.',
   'auth/wrong-password':      'Incorrect password.',
   'auth/invalid-credential':  'Incorrect email or password.',
   'auth/user-not-found':      'No account found with that email.',
@@ -38,12 +41,20 @@ export default function Login() {
   const [form, setForm]         = useState({ schoolCode: '', email: '', password: '', confirmPassword: '' });
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
-  const isAdmin = userType === USER_TYPES.ADMIN;
+  const isAdmin    = userType === USER_TYPES.ADMIN;
+  const isAccounts = userType === USER_TYPES.ACCOUNTS;
+  const isPrivileged = isAdmin || isAccounts;
 
   const handleTypeChange = (type) => {
     setUserType(type);
     setError('');
-    if (type === USER_TYPES.ADMIN) setMode('login');
+    if (type === USER_TYPES.ADMIN || type === USER_TYPES.ACCOUNTS) setMode('login');
+  };
+
+  // For Parent tab we still pass TEACHER to checkSchoolAndUser (existing Parent-Teacher collection)
+  const resolveLoginType = (type) => {
+    if (type === USER_TYPES.PARENT) return USER_TYPES.TEACHER;
+    return type;
   };
 
   const submit = async () => {
@@ -53,7 +64,7 @@ export default function Login() {
       setError('Please fill in all required fields.');
       return;
     }
-    if (!isAdmin && mode === 'register' && password !== confirmPassword) {
+    if (!isPrivileged && mode === 'register' && password !== confirmPassword) {
       setError('Passwords do not match.');
       return;
     }
@@ -65,14 +76,21 @@ export default function Login() {
         setAuthState(USER_TYPES.ADMIN, code, user.uid);
         toast.success('Welcome, Admin!');
         navigate(ROUTES.ADMIN_DASHBOARD, { replace: true });
+      } else if (isAccounts) {
+        const { user } = await loginAccounts({ email, password, schoolCode });
+        setAuthState(USER_TYPES.ACCOUNTS, code, user.uid);
+        toast.success('Welcome, Accounts!');
+        navigate(ROUTES.ACCOUNTS_DASHBOARD, { replace: true });
       } else if (mode === 'login') {
-        const { user, userType: resolvedType } = await loginUser({ email, password, schoolCode, userType });
+        const loginType = resolveLoginType(userType);
+        const { user, userType: resolvedType } = await loginUser({ email, password, schoolCode, userType: loginType });
         setAuthState(resolvedType, code, user.uid);
         toast.success('Welcome back!');
         navigate(ROUTES.HOME, { replace: true });
       } else {
-        const user = await registerUser({ email, password, schoolCode, userType });
-        setAuthState(userType, code, user.uid);
+        const loginType = resolveLoginType(userType);
+        const user = await registerUser({ email, password, schoolCode, userType: loginType });
+        setAuthState(userType === USER_TYPES.PARENT ? USER_TYPES.PARENT : loginType, code, user.uid);
         toast.success('Account created!');
         navigate(ROUTES.PROFILE, { replace: true });
       }
@@ -83,32 +101,36 @@ export default function Login() {
     }
   };
 
+  const activeOption = USER_OPTIONS.find(o => o.value === userType);
+
   return (
     <div className="min-h-screen bg-white flex flex-col">
       {/* Header */}
-      <div className="flex flex-col items-center pt-12 pb-5 px-6 bg-gradient-to-b from-gray-50 to-white">
+      <div className="flex flex-col items-center pt-10 pb-5 px-6 bg-gradient-to-b from-gray-50 to-white">
         <img src="/school-crest.png" alt="Chung Wah"
-          className="w-24 h-24 object-contain drop-shadow-md mb-3" />
+          className="w-20 h-20 object-contain drop-shadow-md mb-3" />
         <h1 className="font-display font-extrabold text-gray-900 text-xl tracking-tight">Chung Wah</h1>
         <p className="text-gray-400 text-xs font-body">E-School Platform</p>
       </div>
 
-      <div className="flex-1 px-6">
-        <div className="mb-5">
+      <div className="flex-1 px-6 pb-8">
+        <div className="mb-4">
           <h2 className="font-display font-bold text-gray-900 text-2xl mb-1">
-            {isAdmin ? 'Admin Sign In' : mode === 'login' ? 'Welcome back' : 'Create account'}
+            {isAdmin ? 'Admin Sign In' : isAccounts ? 'Accounts Sign In' : mode === 'login' ? 'Welcome back' : 'Create account'}
           </h2>
           <p className="text-gray-400 font-body text-sm">
-            {isAdmin ? 'Your credentials are set up in Firebase'
-              : mode === 'login' ? 'Sign in to your school account' : 'Join your school platform'}
+            {isAdmin ? 'Restricted to authorised administrators'
+              : isAccounts ? 'Restricted to accounts staff'
+              : mode === 'login' ? 'Sign in to your school account'
+              : 'Join your school platform'}
           </p>
         </div>
 
-        {/* Type selector */}
-        <div className="flex gap-1.5 mb-5 p-1 rounded-2xl bg-gray-100 border border-gray-200">
+        {/* Role selector — scrollable row */}
+        <div className="flex gap-1.5 mb-5 p-1 rounded-2xl bg-gray-100 border border-gray-200 overflow-x-auto">
           {USER_OPTIONS.map(opt => (
             <button key={opt.value} onClick={() => handleTypeChange(opt.value)}
-              className={`flex-1 py-2.5 rounded-xl font-display font-semibold text-xs transition-all duration-200
+              className={`flex-shrink-0 px-3 py-2.5 rounded-xl font-display font-semibold text-xs transition-all duration-200
                 ${userType === opt.value ? 'text-white shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
               style={userType === opt.value ? { background: opt.color } : {}}>
               {opt.label}
@@ -116,11 +138,20 @@ export default function Login() {
           ))}
         </div>
 
+        {/* Notice banners */}
         {isAdmin && (
           <div className="flex items-start gap-2.5 p-3 rounded-xl bg-purple-50 border border-purple-200 mb-4">
             <ShieldCheck size={16} className="text-purple-500 shrink-0 mt-0.5" />
             <p className="text-purple-600 text-xs font-body">
               Admin accounts are configured in Firebase. Contact your system administrator if you need access.
+            </p>
+          </div>
+        )}
+        {isAccounts && (
+          <div className="flex items-start gap-2.5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 mb-4">
+            <Calculator size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+            <p className="text-emerald-600 text-xs font-body">
+              Accounts access is restricted to finance staff. Contact your administrator to be registered.
             </p>
           </div>
         )}
@@ -149,7 +180,7 @@ export default function Login() {
             </div>
           </div>
 
-          {!isAdmin && mode === 'register' && (
+          {!isPrivileged && mode === 'register' && (
             <div>
               <label className="text-gray-500 text-xs font-body font-medium mb-1.5 block">Confirm Password</label>
               <input className="field" type="password" placeholder="Re-enter password"
@@ -171,13 +202,15 @@ export default function Login() {
           </div>
 
           <button onClick={submit} disabled={loading}
-            className="w-full h-14 rounded-2xl font-display font-bold text-base text-white
-                       flex items-center justify-center gap-2 mt-2 disabled:opacity-50 transition-all"
+            className="w-full h-14 rounded-2xl font-display font-bold text-base
+                       flex items-center justify-center gap-2 mt-1 disabled:opacity-50 transition-all"
             style={{
               background: isAdmin
                 ? 'linear-gradient(135deg, #a855f7, #7c3aed)'
+                : isAccounts
+                ? 'linear-gradient(135deg, #10b981, #059669)'
                 : 'linear-gradient(135deg, #F4A334, #F9C61F)',
-              color: isAdmin ? 'white' : '#1a1f36',
+              color: isAdmin || isAccounts ? 'white' : '#1a1f36',
             }}>
             {loading ? (
               <div className="flex gap-1.5">
@@ -186,14 +219,18 @@ export default function Login() {
                     style={{ animation: `bounce 1s ease-in-out ${i*0.15}s infinite` }} />
                 ))}
               </div>
-            ) : isAdmin ? 'Sign In as Admin' : mode === 'login' ? 'Sign In' : 'Create Account'}
+            ) : isAdmin ? 'Sign In as Admin'
+              : isAccounts ? 'Sign In to Accounts'
+              : mode === 'login' ? 'Sign In'
+              : 'Create Account'}
           </button>
 
-          {!isAdmin && (
-            <p className="text-center text-gray-400 font-body text-sm pb-8">
+          {!isPrivileged && (
+            <p className="text-center text-gray-400 font-body text-sm pb-2">
               {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
               <button onClick={() => { setMode(m => m === 'login' ? 'register' : 'login'); setError(''); }}
-                className="text-yellow-500 font-semibold hover:text-yellow-600 transition-colors">
+                className="font-semibold hover:underline transition-colors"
+                style={{ color: activeOption?.color }}>
                 {mode === 'login' ? 'Register' : 'Sign In'}
               </button>
             </p>
