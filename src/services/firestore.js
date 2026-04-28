@@ -15,13 +15,10 @@ export const getProfile = async (uid, type = 'users') => {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 };
 
-// Profile is read-only from the user side — admin data is the source of truth.
-// Only photoUrl is user-editable.
 export const updateProfilePhoto = async (uid, photoUrl) => {
   await setDoc(doc(db, 'schools', schoolCode(), 'users', uid), { photoUrl }, { merge: true });
 };
 
-// Keep for internal seeding use (auth.js registerUser)
 export const updateProfile = async (uid, data, type = 'users') => {
   await setDoc(doc(db, 'schools', schoolCode(), type, uid), data, { merge: true });
 };
@@ -37,7 +34,6 @@ export const requestProfileCorrection = async (message) => {
 };
 
 // ─── Guardian / Parent Requests ─────────────────────────────────────────────
-// Listener: student sees pending requests to confirm
 export const getGuardianRequests = (studentDocId, callback) => {
   const q = query(
     collection(db, 'schools', schoolCode(), 'guardianRequests'),
@@ -49,7 +45,6 @@ export const getGuardianRequests = (studentDocId, callback) => {
   );
 };
 
-// Student accepts or rejects a guardian request
 export const respondToGuardianRequest = async (requestId, accepted, parentDocId) => {
   const status = accepted ? 'confirmed' : 'rejected';
   await updateDoc(
@@ -57,7 +52,6 @@ export const respondToGuardianRequest = async (requestId, accepted, parentDocId)
     { status, respondedAt: serverTimestamp() }
   );
   if (accepted) {
-    // Mark in student's profile that this guardian is confirmed
     await setDoc(
       doc(db, 'schools', schoolCode(), 'users', userId()),
       { [`guardians.${parentDocId}`]: 'confirmed' },
@@ -66,7 +60,6 @@ export const respondToGuardianRequest = async (requestId, accepted, parentDocId)
   }
 };
 
-// Get all guardian request docs for a parent (to show pending/confirmed in Children panel)
 export const getParentGuardianLinks = (parentDocId, callback) => {
   const q = query(
     collection(db, 'schools', schoolCode(), 'guardianRequests'),
@@ -152,6 +145,166 @@ export const getStudentReports = (studentId, callback) => {
     collection(db, 'schools', schoolCode(), 'studentReports'),
     where('studentId', '==', studentId),
     orderBy('createdAt', 'desc')
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+// ─── Attendance ───────────────────────────────────────────────────────────────
+// Teacher submits a full class roll-call for a given date
+export const submitAttendance = async ({ date, standard, division, subject, records }) => {
+  // records: [{ studentId, studentName, status }]
+  const docId = `${date}_${standard}${division}`;
+  await setDoc(doc(db, 'schools', schoolCode(), 'attendance', docId), {
+    date,
+    standard,
+    division,
+    subject: subject || '',
+    records,
+    teacherId: userId(),
+    submittedAt: serverTimestamp(),
+  });
+  // Also write individual student attendance docs for easy querying
+  await Promise.all(records.map(r =>
+    setDoc(
+      doc(db, 'schools', schoolCode(), 'studentAttendance', `${date}_${r.studentId}`),
+      {
+        date,
+        studentId: r.studentId,
+        studentName: r.studentName,
+        status: r.status,
+        standard,
+        division,
+        subject: subject || '',
+        teacherId: userId(),
+        submittedAt: serverTimestamp(),
+      }
+    )
+  ));
+};
+
+// Get attendance records for a class on a given date
+export const getClassAttendance = async (date, standard, division) => {
+  const docId = `${date}_${standard}${division}`;
+  const snap = await getDoc(doc(db, 'schools', schoolCode(), 'attendance', docId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+};
+
+// Live listener for a student's own attendance
+export const getStudentAttendance = (studentId, callback) => {
+  const q = query(
+    collection(db, 'schools', schoolCode(), 'studentAttendance'),
+    where('studentId', '==', studentId),
+    orderBy('date', 'desc'),
+    limit(60)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+// Get recent attendance records submitted by a teacher
+export const getTeacherAttendanceHistory = (callback) => {
+  const q = query(
+    collection(db, 'schools', schoolCode(), 'attendance'),
+    where('teacherId', '==', userId()),
+    orderBy('submittedAt', 'desc'),
+    limit(30)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+// ─── Fees (Accounts manages, Students/Parents read) ──────────────────────────
+// Accounts creates/updates a fee record for a student
+export const upsertStudentFee = async (studentId, feeData) => {
+  const docId = `${feeData.term}_${studentId}`.replace(/\s+/g, '_');
+  await setDoc(
+    doc(db, 'schools', schoolCode(), 'fees', docId),
+    {
+      ...feeData,
+      studentId,
+      updatedAt: serverTimestamp(),
+      updatedBy: userId(),
+    },
+    { merge: true }
+  );
+};
+
+// Record a payment against an existing fee doc
+export const recordPayment = async (feeDocId, paymentData) => {
+  const feeRef = doc(db, 'schools', schoolCode(), 'fees', feeDocId);
+  const snap = await getDoc(feeRef);
+  if (!snap.exists()) throw new Error('Fee record not found');
+  const existing = snap.data();
+  const payments = existing.payments || [];
+  payments.push({ ...paymentData, recordedAt: new Date().toISOString(), recordedBy: userId() });
+  const totalPaid = payments.reduce((s, p) => s + (p.amount || 0), 0);
+  const balance = (existing.amount || 0) - totalPaid;
+  const status = balance <= 0 ? 'paid' : totalPaid > 0 ? 'partial' : existing.status;
+  await updateDoc(feeRef, { payments, totalPaid, balance, status, updatedAt: serverTimestamp() });
+};
+
+// Student or Parent reads their own fee records
+export const getStudentFees = (studentId, callback) => {
+  const q = query(
+    collection(db, 'schools', schoolCode(), 'fees'),
+    where('studentId', '==', studentId),
+    orderBy('updatedAt', 'desc')
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+// Accounts reads all fees
+export const getAllFees = (callback) => {
+  const q = query(
+    collection(db, 'schools', schoolCode(), 'fees'),
+    orderBy('updatedAt', 'desc'),
+    limit(200)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+// ─── Expenses ────────────────────────────────────────────────────────────────
+export const addExpense = async (data) => {
+  await addDoc(collection(db, 'schools', schoolCode(), 'expenses'), {
+    ...data,
+    recordedBy: userId(),
+    createdAt: serverTimestamp(),
+  });
+};
+
+export const getExpenses = (callback) => {
+  const q = query(
+    collection(db, 'schools', schoolCode(), 'expenses'),
+    orderBy('createdAt', 'desc'),
+    limit(100)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+// ─── Financial Reports (Accounts generates, Admin reads) ─────────────────────
+export const saveFinancialReport = async (reportData) => {
+  await addDoc(collection(db, 'schools', schoolCode(), 'financialReports'), {
+    ...reportData,
+    generatedBy: userId(),
+    generatedAt: serverTimestamp(),
+  });
+};
+
+export const getFinancialReports = (callback) => {
+  const q = query(
+    collection(db, 'schools', schoolCode(), 'financialReports'),
+    orderBy('generatedAt', 'desc'),
+    limit(20)
   );
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
@@ -247,15 +400,14 @@ export const adminCreateStudent = async (data) => {
   return ref.id;
 };
 
-// Creates a guardian request for each child linked to the parent/guardian
 const adminCreateGuardianRequests = async (parentDocId, parentName, parentTitle, relationshipType, children) => {
   await Promise.all(
     children.map(child =>
       addDoc(collection(db, 'schools', adminSchoolCode(), 'guardianRequests'), {
         parentDocId,
         parentName,
-        parentTitle,         // 'Mr' | 'Mrs' | 'Miss'
-        relationshipType,    // 'Parent' | 'Guardian'
+        parentTitle,
+        relationshipType,
         studentDocId: child.studentId,
         studentName: child.studentName,
         status: 'pending',
@@ -278,7 +430,6 @@ export const adminCreateTeacherParent = async (data) => {
       createdBy: userId(),
     }
   );
-  // Create pending guardian request docs for each child (so student sees notification)
   if (!rest.isATeacher && children.length > 0) {
     await adminCreateGuardianRequests(
       docRef.id,
@@ -332,7 +483,6 @@ export const adminGetStats = async () => {
 
 // ─── Teacher: Link a guardian to a student ────────────────────────────────────
 export const teacherLinkGuardian = async ({ parentDocId, parentName, parentTitle, relationshipType, studentDocId, studentName }) => {
-  // Check if a pending/confirmed request already exists
   const existing = await getDocs(query(
     collection(db, 'schools', schoolCode(), 'guardianRequests'),
     where('parentDocId', '==', parentDocId),
@@ -353,7 +503,6 @@ export const teacherLinkGuardian = async ({ parentDocId, parentName, parentTitle
   });
 };
 
-// ─── Admin: Get the confirmed parent/guardian linked to a student ─────────────
 export const adminGetLinkedParent = async (studentId) => {
   const all = await adminGetTeachersParents();
   return all.find(p =>
@@ -362,7 +511,6 @@ export const adminGetLinkedParent = async (studentId) => {
   ) || null;
 };
 
-// ─── Admin: Get next enrolment number ────────────────────────────────────────
 export const adminGetNextEnrolNo = async () => {
   const students = await adminGetStudents();
   let max = 0;
