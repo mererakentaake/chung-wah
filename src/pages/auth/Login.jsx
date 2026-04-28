@@ -5,29 +5,30 @@ import { Eye, EyeOff, AlertCircle, ShieldCheck, Calculator } from 'lucide-react'
 import toast from 'react-hot-toast';
 import { loginUser, registerUser, loginAdmin, loginAccounts } from '../../services/auth';
 import { useAuth } from '../../context/AuthContext';
-import { USER_TYPES, ROUTES } from '../../utils/constants';
+import { USER_TYPES, ROUTES, SCHOOL_CODE } from '../../utils/constants';
+import { markLaunched } from '../Welcome';
 
 const USER_OPTIONS = [
   { label: 'Student',  value: USER_TYPES.STUDENT,  color: '#F4A334' },
   { label: 'Teacher',  value: USER_TYPES.TEACHER,   color: '#F9C61F' },
   { label: 'Parent',   value: USER_TYPES.PARENT,    color: '#E84545' },
   { label: 'Accounts', value: USER_TYPES.ACCOUNTS,  color: '#10b981' },
-  { label: 'Admin',    value: USER_TYPES.ADMIN,      color: '#a855f7' },
+  { label: 'Admin',    value: USER_TYPES.ADMIN,     color: '#a855f7' },
 ];
 
 const ERROR_MSGS = {
-  'USER_NOT_FOUND':           'No account found with that email.',
-  'USER_NOT_PREREGISTERED':   'Your email has not been pre-registered by the school admin.',
-  'NEEDS_REGISTRATION':       'Your account is pre-registered but not yet activated. Switch to "Register" below and set your password to activate it.',
-  'NOT_AN_ADMIN':             'This account does not have admin access for this school.',
-  'NOT_AN_ACCOUNTANT':        'This account does not have accounts access for this school.',
-  'auth/wrong-password':      'Incorrect password.',
-  'auth/invalid-credential':  'Incorrect email or password.',
-  'auth/user-not-found':      'No account found with that email.',
-  'auth/email-already-in-use':'Email already registered. Try signing in instead.',
-  'auth/weak-password':       'Password should be at least 6 characters.',
-  'auth/network-request-failed':'Network error. Check your connection.',
-  'auth/too-many-requests':   'Too many attempts. Try again later.',
+  'USER_NOT_FOUND':            'No account found with that email.',
+  'USER_NOT_PREREGISTERED':    'Your email has not been pre-registered by the school admin.',
+  'NEEDS_REGISTRATION':        'Your account is pre-registered but not yet activated. Switch to "Register" below and set your password to activate it.',
+  'NOT_AN_ADMIN':              'This account does not have admin access.',
+  'NOT_AN_ACCOUNTANT':         'This account does not have accounts access.',
+  'auth/wrong-password':       'Incorrect password.',
+  'auth/invalid-credential':   'Incorrect email or password.',
+  'auth/user-not-found':       'No account found with that email.',
+  'auth/email-already-in-use': 'Email already registered. Try signing in instead.',
+  'auth/weak-password':        'Password should be at least 6 characters.',
+  'auth/network-request-failed': 'Network error. Check your connection.',
+  'auth/too-many-requests':    'Too many attempts. Try again later.',
 };
 
 export default function Login() {
@@ -38,11 +39,11 @@ export default function Login() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
-  const [form, setForm]         = useState({ schoolCode: '', email: '', password: '', confirmPassword: '' });
+  const [form, setForm]         = useState({ email: '', password: '', confirmPassword: '' });
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
-  const isAdmin    = userType === USER_TYPES.ADMIN;
-  const isAccounts = userType === USER_TYPES.ACCOUNTS;
+  const isAdmin      = userType === USER_TYPES.ADMIN;
+  const isAccounts   = userType === USER_TYPES.ACCOUNTS;
   const isPrivileged = isAdmin || isAccounts;
 
   const handleTypeChange = (type) => {
@@ -59,9 +60,9 @@ export default function Login() {
 
   const submit = async () => {
     setError('');
-    const { schoolCode, email, password, confirmPassword } = form;
-    if (!schoolCode.trim() || !email.trim() || !password.trim()) {
-      setError('Please fill in all required fields.');
+    const { email, password, confirmPassword } = form;
+    if (!email.trim() || !password.trim()) {
+      setError('Please fill in your email and password.');
       return;
     }
     if (!isPrivileged && mode === 'register' && password !== confirmPassword) {
@@ -70,27 +71,31 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      const code = schoolCode.toUpperCase().trim();
+      const code = SCHOOL_CODE;
       if (isAdmin) {
-        const { user } = await loginAdmin({ email, password, schoolCode });
+        const { user } = await loginAdmin({ email, password, schoolCode: code });
         setAuthState(USER_TYPES.ADMIN, code, user.uid);
+        markLaunched();
         toast.success('Welcome, Admin!');
         navigate(ROUTES.ADMIN_DASHBOARD, { replace: true });
       } else if (isAccounts) {
-        const { user } = await loginAccounts({ email, password, schoolCode });
+        const { user } = await loginAccounts({ email, password, schoolCode: code });
         setAuthState(USER_TYPES.ACCOUNTS, code, user.uid);
+        markLaunched();
         toast.success('Welcome, Accounts!');
         navigate(ROUTES.ACCOUNTS_DASHBOARD, { replace: true });
       } else if (mode === 'login') {
         const loginType = resolveLoginType(userType);
-        const { user, userType: resolvedType } = await loginUser({ email, password, schoolCode, userType: loginType });
+        const { user, userType: resolvedType } = await loginUser({ email, password, schoolCode: code, userType: loginType });
         setAuthState(resolvedType, code, user.uid);
+        markLaunched();
         toast.success('Welcome back!');
         navigate(ROUTES.HOME, { replace: true });
       } else {
         const loginType = resolveLoginType(userType);
-        const user = await registerUser({ email, password, schoolCode, userType: loginType });
+        const user = await registerUser({ email, password, schoolCode: code, userType: loginType });
         setAuthState(userType === USER_TYPES.PARENT ? USER_TYPES.PARENT : loginType, code, user.uid);
+        markLaunched();
         toast.success('Account created!');
         navigate(ROUTES.PROFILE, { replace: true });
       }
@@ -158,11 +163,6 @@ export default function Login() {
 
         <div className="flex flex-col gap-4">
           <div>
-            <label className="text-gray-500 text-xs font-body font-medium mb-1.5 block">School Code</label>
-            <input className="field" placeholder="Your school code" value={form.schoolCode}
-              onChange={set('schoolCode')} autoCapitalize="characters" />
-          </div>
-          <div>
             <label className="text-gray-500 text-xs font-body font-medium mb-1.5 block">Email</label>
             <input className="field" type="email" placeholder="you@example.com" value={form.email}
               onChange={set('email')} autoComplete="email" />
@@ -214,9 +214,9 @@ export default function Login() {
             }}>
             {loading ? (
               <div className="flex gap-1.5">
-                {[0,1,2].map(i => (
+                {[0, 1, 2].map(i => (
                   <div key={i} className="w-2 h-2 rounded-full bg-current opacity-60"
-                    style={{ animation: `bounce 1s ease-in-out ${i*0.15}s infinite` }} />
+                    style={{ animation: `bounce 1s ease-in-out ${i * 0.15}s infinite` }} />
                 ))}
               </div>
             ) : isAdmin ? 'Sign In as Admin'
