@@ -154,7 +154,7 @@ export const getStudentReports = (studentId, callback) => {
 // ─── Attendance ───────────────────────────────────────────────────────────────
 // Teacher submits a full class roll-call for a given date
 export const submitAttendance = async ({ date, standard, division, subject, records }) => {
-  // records: [{ studentId, studentName, status }]
+  // records: [{ studentId, studentName, status, note?, checkInTime?, checkOutTime?, minutesLate? }]
   const docId = `${date}_${standard}${division}`;
   await setDoc(doc(db, 'schools', schoolCode(), 'attendance', docId), {
     date,
@@ -164,7 +164,7 @@ export const submitAttendance = async ({ date, standard, division, subject, reco
     records,
     teacherId: userId(),
     submittedAt: serverTimestamp(),
-  });
+  }, { merge: true });
   // Also write individual student attendance docs for easy querying
   await Promise.all(records.map(r =>
     setDoc(
@@ -174,12 +174,17 @@ export const submitAttendance = async ({ date, standard, division, subject, reco
         studentId: r.studentId,
         studentName: r.studentName,
         status: r.status,
+        note: r.note || '',
+        checkInTime: r.checkInTime || '',
+        checkOutTime: r.checkOutTime || '',
+        minutesLate: r.minutesLate || 0,
         standard,
         division,
         subject: subject || '',
         teacherId: userId(),
         submittedAt: serverTimestamp(),
-      }
+      },
+      { merge: true }
     )
   ));
 };
