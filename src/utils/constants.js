@@ -17,6 +17,9 @@ export const USER_COLORS = {
   ACCOUNTS: '#10b981',
 };
 
+// Hardcoded school code — avoids exposing it in the login UI
+export const SCHOOL_CODE = import.meta.env.VITE_SCHOOL_CODE || 'CWES';
+
 export const ROUTES = {
   WELCOME: '/',
   LOGIN: '/login',
@@ -87,12 +90,103 @@ export const SUBJECTS = [
   'Health Education',
 ];
 
+// ─── Attendance Statuses ────────────────────────────────────────────────────
+// Main statuses — always visible
 export const ATTENDANCE_STATUSES = {
-  PRESENT: 'present',
-  ABSENT: 'absent',
-  LATE: 'late',
-  EXCUSED: 'excused',
+  PRESENT:         'present',
+  ABSENT:          'absent',
+  LATE:            'late',
+  EXCUSED:         'excused',
+  SICK:            'sick',
+  LEFT_EARLY:      'left_early',
+  SCHOOL_ACTIVITY: 'school_activity',
+  UNEXPLAINED:     'unexplained',
+  // Extra — admin-enabled
+  MEDICAL_APPT:    'medical_appt',
+  ON_LEAVE:        'on_leave',
+  SUSPENDED:       'suspended',
+  PARTIAL:         'partial',
+  ONLINE_PRESENT:  'online_present',
 };
+
+export const ATTENDANCE_STATUS_CONFIG = {
+  [ATTENDANCE_STATUSES.PRESENT]: {
+    label: 'P', full: 'Present', color: '#22c55e',
+    bg: 'rgba(34,197,94,0.15)', border: 'rgba(34,197,94,0.35)',
+    isMain: true,
+  },
+  [ATTENDANCE_STATUSES.ABSENT]: {
+    label: 'A', full: 'Absent', color: '#ef4444',
+    bg: 'rgba(239,68,68,0.15)', border: 'rgba(239,68,68,0.35)',
+    isMain: true,
+  },
+  [ATTENDANCE_STATUSES.LATE]: {
+    label: 'L', full: 'Late', color: '#f59e0b',
+    bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.35)',
+    isMain: true,
+  },
+  [ATTENDANCE_STATUSES.EXCUSED]: {
+    label: 'E', full: 'Excused', color: '#3b82f6',
+    bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.35)',
+    isMain: true,
+  },
+  [ATTENDANCE_STATUSES.SICK]: {
+    label: 'S', full: 'Sick', color: '#f97316',
+    bg: 'rgba(249,115,22,0.15)', border: 'rgba(249,115,22,0.35)',
+    isMain: true,
+  },
+  [ATTENDANCE_STATUSES.LEFT_EARLY]: {
+    label: 'LE', full: 'Left Early', color: '#a78bfa',
+    bg: 'rgba(167,139,250,0.15)', border: 'rgba(167,139,250,0.35)',
+    isMain: true,
+  },
+  [ATTENDANCE_STATUSES.SCHOOL_ACTIVITY]: {
+    label: 'SA', full: 'Activity', color: '#8b5cf6',
+    bg: 'rgba(139,92,246,0.15)', border: 'rgba(139,92,246,0.35)',
+    isMain: true,
+  },
+  [ATTENDANCE_STATUSES.UNEXPLAINED]: {
+    label: 'U', full: 'Unexplained', color: '#94a3b8',
+    bg: 'rgba(148,163,184,0.15)', border: 'rgba(148,163,184,0.35)',
+    isMain: true,
+  },
+  // Extra statuses
+  [ATTENDANCE_STATUSES.MEDICAL_APPT]: {
+    label: 'MA', full: 'Medical Appt', color: '#06b6d4',
+    bg: 'rgba(6,182,212,0.15)', border: 'rgba(6,182,212,0.35)',
+    isMain: false,
+  },
+  [ATTENDANCE_STATUSES.ON_LEAVE]: {
+    label: 'OL', full: 'On Leave', color: '#64748b',
+    bg: 'rgba(100,116,139,0.15)', border: 'rgba(100,116,139,0.35)',
+    isMain: false,
+  },
+  [ATTENDANCE_STATUSES.SUSPENDED]: {
+    label: 'SU', full: 'Suspended', color: '#dc2626',
+    bg: 'rgba(220,38,38,0.12)', border: 'rgba(220,38,38,0.3)',
+    isMain: false,
+  },
+  [ATTENDANCE_STATUSES.PARTIAL]: {
+    label: 'PA', full: 'Partial', color: '#d97706',
+    bg: 'rgba(217,119,6,0.15)', border: 'rgba(217,119,6,0.35)',
+    isMain: false,
+  },
+  [ATTENDANCE_STATUSES.ONLINE_PRESENT]: {
+    label: 'OP', full: 'Online', color: '#10b981',
+    bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.35)',
+    isMain: false,
+  },
+};
+
+export const MAIN_STATUSES   = Object.keys(ATTENDANCE_STATUS_CONFIG).filter(k => ATTENDANCE_STATUS_CONFIG[k].isMain);
+export const EXTRA_STATUSES  = Object.keys(ATTENDANCE_STATUS_CONFIG).filter(k => !ATTENDANCE_STATUS_CONFIG[k].isMain);
+
+// Statuses that warrant a welfare flag if repeated
+export const WELFARE_STATUSES = [
+  ATTENDANCE_STATUSES.ABSENT,
+  ATTENDANCE_STATUSES.UNEXPLAINED,
+  ATTENDANCE_STATUSES.SUSPENDED,
+];
 
 export const FEE_STATUSES = {
   PAID: 'paid',
