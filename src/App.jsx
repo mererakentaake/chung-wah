@@ -45,10 +45,9 @@ import FinancialReports  from './pages/accounts/FinancialReports';
 
 // Admin panel
 import AdminDashboard        from './pages/admin/AdminDashboard';
-import AdminStudents         from './pages/admin/AdminStudents';
-import AdminTeachers         from './pages/admin/AdminTeachers';
-import CreateUser            from './pages/admin/CreateUser';
-import EditUser              from './pages/admin/EditUser';
+import ManageStudents        from './pages/admin/ManageStudents';
+import ManageTeachers        from './pages/admin/ManageTeachers';
+import CreateEditUser        from './pages/admin/CreateEditUser';
 import AdminFinancialReports from './pages/admin/AdminFinancialReports';
 
 function Loader() {
@@ -197,16 +196,16 @@ export default function App() {
         <RequireAuth allow={[USER_TYPES.ADMIN]}><AdminDashboard /></RequireAuth>
       } />
       <Route path={ROUTES.ADMIN_STUDENTS} element={
-        <RequireAuth allow={[USER_TYPES.ADMIN]}><AdminStudents /></RequireAuth>
+        <RequireAuth allow={[USER_TYPES.ADMIN]}><ManageStudents /></RequireAuth>
       } />
       <Route path={ROUTES.ADMIN_TEACHERS} element={
-        <RequireAuth allow={[USER_TYPES.ADMIN]}><AdminTeachers /></RequireAuth>
+        <RequireAuth allow={[USER_TYPES.ADMIN]}><ManageTeachers /></RequireAuth>
       } />
       <Route path={ROUTES.ADMIN_CREATE_USER} element={
-        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><CreateUser /></RequireAuth>
+        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><CreateEditUser /></RequireAuth>
       } />
       <Route path={`${ROUTES.ADMIN_EDIT_USER}/:type/:id`} element={
-        <RequireAuth allow={[USER_TYPES.ADMIN]}><EditUser /></RequireAuth>
+        <RequireAuth allow={[USER_TYPES.ADMIN]}><CreateEditUser /></RequireAuth>
       } />
       <Route path={ROUTES.ADMIN_FINANCIAL_REPORTS} element={
         <RequireAuth allow={[USER_TYPES.ADMIN]}><AdminFinancialReports /></RequireAuth>
