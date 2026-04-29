@@ -1,278 +1,188 @@
 // src/pages/attendance/AttendanceRecords.jsx
-import React, { useState, useEffect, useMemo } from 'react';
-import { AlertTriangle, TrendingDown, Calendar, BarChart3, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { ClipboardList, CheckCircle, XCircle, Clock, BookOpen } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getStudentAttendance, getProfile } from '../../services/firestore';
+import { getStudentAttendance, getParentGuardianLinks, adminGetStudents } from '../../services/firestore';
 import TopBar from '../../components/layout/TopBar';
 import BottomNav from '../../components/layout/BottomNav';
-import {
-  ATTENDANCE_STATUS_CONFIG, ATTENDANCE_STATUSES,
-  WELFARE_STATUSES,
-} from '../../utils/constants';
+import { USER_TYPES, ATTENDANCE_STATUSES } from '../../utils/constants';
 
-// Format ISO date string to readable
-function fmtDate(dateStr) {
-  if (!dateStr) return '';
-  const [y, m, d] = dateStr.split('-');
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${d} ${months[parseInt(m, 10) - 1]} ${y}`;
-}
+const STATUS_CONFIG = {
+  [ATTENDANCE_STATUSES.PRESENT]: { label: 'Present', color: '#22c55e', bgClass: 'bg-emerald-50',  icon: CheckCircle },
+  [ATTENDANCE_STATUSES.ABSENT]:  { label: 'Absent',  color: '#ef4444', bgClass: 'bg-red-50',      icon: XCircle },
+  [ATTENDANCE_STATUSES.LATE]:    { label: 'Late',    color: '#f59e0b', bgClass: 'bg-yellow-50',   icon: Clock },
+  [ATTENDANCE_STATUSES.EXCUSED]: { label: 'Excused', color: '#3b82f6', bgClass: 'bg-blue-50',     icon: BookOpen },
+};
 
-// Group records by month label
-function groupByMonth(records) {
-  const groups = {};
-  records.forEach(r => {
-    if (!r.date) return;
-    const [y, m] = r.date.split('-');
-    const label = new Date(parseInt(y), parseInt(m) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-    if (!groups[label]) groups[label] = [];
-    groups[label].push(r);
-  });
-  return groups;
-}
+function RecordsList({ studentId, studentName }) {
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-// ─── Summary Stats Component ─────────────────────────────────────────────────
-function SummaryStats({ records, standard, division }) {
-  const stats = useMemo(() => {
-    const total = records.length;
-    if (total === 0) return null;
+  useEffect(() => {
+    if (!studentId) return;
+    setLoading(true);
+    const unsub = getStudentAttendance(studentId, data => { setRecords(data); setLoading(false); });
+    return unsub;
+  }, [studentId]);
 
-    const counts = {};
-    let lateDays = 0;
-    let welfareDays = 0;
+  const presentCount = records.filter(r => r.status === ATTENDANCE_STATUSES.PRESENT).length;
+  const absentCount  = records.filter(r => r.status === ATTENDANCE_STATUSES.ABSENT).length;
+  const lateCount    = records.filter(r => r.status === ATTENDANCE_STATUSES.LATE).length;
+  const pct = records.length > 0 ? Math.round((presentCount / records.length) * 100) : null;
 
-    records.forEach(r => {
-      const s = r.status || ATTENDANCE_STATUSES.PRESENT;
-      counts[s] = (counts[s] || 0) + 1;
-      if (s === ATTENDANCE_STATUSES.LATE) lateDays++;
-      if (WELFARE_STATUSES.includes(s)) welfareDays++;
-    });
+  if (loading) return (
+    <div className="flex flex-col gap-3">
+      {[1,2,3,4,5].map(i => <div key={i} className="h-16 rounded-2xl bg-gray-100 animate-pulse" />)}
+    </div>
+  );
 
-    const presentLike = (counts[ATTENDANCE_STATUSES.PRESENT] || 0)
-      + (counts[ATTENDANCE_STATUSES.ONLINE_PRESENT] || 0)
-      + (counts[ATTENDANCE_STATUSES.PARTIAL] || 0);
-    const pct = Math.round((presentLike / total) * 100);
-
-    // Most frequent absence reason
-    const absenceCounts = {};
-    records.forEach(r => {
-      if (r.status && r.status !== ATTENDANCE_STATUSES.PRESENT) {
-        absenceCounts[r.status] = (absenceCounts[r.status] || 0) + 1;
-      }
-    });
-    const topAbsence = Object.entries(absenceCounts).sort((a, b) => b[1] - a[1])[0];
-
-    return { total, presentLike, pct, counts, lateDays, welfareDays, topAbsence };
-  }, [records]);
-
-  if (!stats) return null;
-
-  const alerts = [];
-  if (stats.welfareDays >= 3) {
-    alerts.push(`${stats.welfareDays} unexplained or concerning absences this period.`);
-  }
-  if (stats.lateDays >= 3) {
-    alerts.push(`Arrived late ${stats.lateDays} times this period.`);
-  }
+  if (records.length === 0) return (
+    <div className="flex flex-col items-center gap-3 py-16 text-center">
+      <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center">
+        <ClipboardList size={24} className="text-gray-300" />
+      </div>
+      <p className="text-gray-400 font-body">No attendance records yet</p>
+      <p className="text-gray-300 text-xs font-body">Records appear once your teacher marks roll-call</p>
+    </div>
+  );
 
   return (
-    <div className="mb-4">
-      {/* Class label */}
-      {standard && division && (
-        <p className="font-display font-extrabold text-white text-center text-lg mb-3 tracking-wide">
-          STANDARD {standard} {division}
-        </p>
+    <>
+      {studentName && (
+        <p className="text-gray-500 text-sm font-body mb-3">{studentName}</p>
       )}
 
-      {/* Attendance % card */}
-      <div className="glass-card p-4 mb-3">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <BarChart3 size={16} className="text-white/40" />
-            <p className="text-white/50 text-xs font-body font-semibold">Attendance Rate</p>
-          </div>
-          <p className="font-display font-bold text-2xl"
-            style={{ color: stats.pct >= 80 ? '#22c55e' : stats.pct >= 60 ? '#f59e0b' : '#ef4444' }}>
-            {stats.pct}%
-          </p>
-        </div>
-        {/* Progress bar */}
-        <div className="h-2 rounded-full bg-white/10 overflow-hidden mb-3">
-          <div className="h-full rounded-full transition-all"
-            style={{
-              width: `${stats.pct}%`,
-              background: stats.pct >= 80 ? '#22c55e' : stats.pct >= 60 ? '#f59e0b' : '#ef4444',
-            }} />
-        </div>
-        <div className="flex items-center justify-between text-xs font-body">
-          <span className="text-white/40">{stats.presentLike} of {stats.total} days present</span>
-          {stats.pct < 80 && (
-            <span className="text-yellow-400 font-semibold">Below 80% threshold</span>
+      {/* Summary card */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-gray-400 text-xs font-body font-semibold uppercase tracking-wider">Summary</p>
+          {pct !== null && (
+            <span className={`text-xl font-display font-bold ${pct >= 80 ? 'text-emerald-500' : pct >= 60 ? 'text-yellow-500' : 'text-red-500'}`}>
+              {pct}%
+            </span>
           )}
         </div>
-      </div>
-
-      {/* Quick stats row */}
-      <div className="grid grid-cols-3 gap-2 mb-3">
-        <div className="glass-card p-3 text-center">
-          <p className="font-display font-bold text-lg text-white">{stats.total}</p>
-          <p className="text-white/40 text-[10px] font-body">Total Days</p>
-        </div>
-        <div className="glass-card p-3 text-center">
-          <p className="font-display font-bold text-lg" style={{ color: '#22c55e' }}>{stats.presentLike}</p>
-          <p className="text-white/40 text-[10px] font-body">Days Present</p>
-        </div>
-        <div className="glass-card p-3 text-center">
-          <p className="font-display font-bold text-lg" style={{ color: '#ef4444' }}>
-            {stats.counts[ATTENDANCE_STATUSES.ABSENT] || 0}
-          </p>
-          <p className="text-white/40 text-[10px] font-body">Absences</p>
-        </div>
-      </div>
-
-      {/* Most frequent absence */}
-      {stats.topAbsence && (
-        <div className="glass-card p-3 mb-3 flex items-center gap-3">
-          <TrendingDown size={15} className="text-white/40 shrink-0" />
-          <div>
-            <p className="text-white/40 text-[10px] font-body">Most Frequent Status (non-present)</p>
-            <div className="flex items-center gap-2 mt-0.5">
-              {(() => {
-                const cfg = ATTENDANCE_STATUS_CONFIG[stats.topAbsence[0]];
-                return cfg ? (
-                  <span className="px-2 py-0.5 rounded-lg text-xs font-display font-bold"
-                    style={{ background: cfg.bg, color: cfg.color }}>
-                    {cfg.full}
-                  </span>
-                ) : null;
-              })()}
-              <span className="text-white/60 text-xs font-body">{stats.topAbsence[1]}×</span>
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          {[
+            { label: 'Present', value: presentCount, color: '#22c55e', bg: 'bg-emerald-50' },
+            { label: 'Absent',  value: absentCount,  color: '#ef4444', bg: 'bg-red-50' },
+            { label: 'Late',    value: lateCount,    color: '#f59e0b', bg: 'bg-yellow-50' },
+          ].map(item => (
+            <div key={item.label} className={`text-center p-2 rounded-xl ${item.bg}`}>
+              <p className="font-display font-bold text-xl" style={{ color: item.color }}>{item.value}</p>
+              <p className="text-gray-500 text-xs font-body">{item.label}</p>
             </div>
-          </div>
+          ))}
         </div>
-      )}
-
-      {/* Alerts */}
-      {alerts.length > 0 && (
-        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 mb-3">
-          <div className="flex items-center gap-2 mb-1">
-            <AlertTriangle size={14} className="text-red-400" />
-            <p className="text-red-400 text-xs font-body font-semibold">Attention Required</p>
+        {pct !== null && (
+          <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
+            <div className="h-full rounded-full transition-all"
+              style={{
+                width: `${pct}%`,
+                background: pct >= 80 ? '#22c55e' : pct >= 60 ? '#f59e0b' : '#ef4444',
+              }} />
           </div>
-          {alerts.map((a, i) => (
-            <p key={i} className="text-red-300/70 text-xs font-body">{a}</p>
+        )}
+      </div>
+
+      {/* Records list */}
+      <div className="flex flex-col gap-2">
+        {records.map(r => {
+          const cfg = STATUS_CONFIG[r.status] || STATUS_CONFIG[ATTENDANCE_STATUSES.ABSENT];
+          const Icon = cfg.icon;
+          return (
+            <div key={r.id} className="flex items-center gap-3 p-3.5 bg-white rounded-2xl border border-gray-100 shadow-sm">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${cfg.bgClass}`}>
+                <Icon size={17} style={{ color: cfg.color }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-gray-800 font-display font-medium text-sm">{r.date}</p>
+                {r.subject && <p className="text-gray-400 text-xs font-body">{r.subject}</p>}
+              </div>
+              <span className="text-xs font-body font-semibold px-2 py-1 rounded-lg"
+                style={{ background: `${cfg.color}14`, color: cfg.color }}>
+                {cfg.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+export default function AttendanceRecords() {
+  const { userType, userId } = useAuth();
+  const [searchParams] = useSearchParams();
+  const [children, setChildren]             = useState([]);
+  const [selectedChild, setSelectedChild]   = useState(null);
+  const [loadingChildren, setLoadingChildren] = useState(false);
+
+  const isParent  = userType === USER_TYPES.PARENT;
+  const isStudent = userType === USER_TYPES.STUDENT;
+  const paramStudentId = searchParams.get('studentId');
+  const paramName      = searchParams.get('name');
+
+  useEffect(() => {
+    if (!isParent || !userId) return;
+    if (paramStudentId) { setSelectedChild({ id: paramStudentId, name: paramName || 'Student' }); return; }
+    setLoadingChildren(true);
+    const unsub = getParentGuardianLinks(userId, async links => {
+      const confirmed = links.filter(l => l.status === 'confirmed');
+      if (confirmed.length > 0) {
+        try {
+          const all = await adminGetStudents();
+          const mapped = confirmed.map(l => {
+            const data = all.find(s => s.id === l.studentDocId);
+            return { id: l.studentDocId, name: l.studentName, data };
+          }).filter(c => c.id);
+          setChildren(mapped);
+          if (mapped.length > 0) setSelectedChild(mapped[0]);
+        } catch {}
+      }
+      setLoadingChildren(false);
+    });
+    return unsub;
+  }, [isParent, userId, paramStudentId]);
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <TopBar title={isStudent ? 'My Attendance' : 'Attendance Records'} showBack />
+
+      {/* Child selector for parents with multiple children */}
+      {isParent && children.length > 1 && !paramStudentId && (
+        <div className="flex gap-2 px-4 pt-3 overflow-x-auto">
+          {children.map(c => (
+            <button key={c.id} onClick={() => setSelectedChild(c)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-display font-semibold whitespace-nowrap transition-all ${
+                selectedChild?.id === c.id
+                  ? 'bg-indigo-500 text-white'
+                  : 'bg-white border border-gray-200 text-gray-500'
+              }`}>
+              {c.name}
+            </button>
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── History Record Row ───────────────────────────────────────────────────────
-function RecordRow({ record }) {
-  const cfg = ATTENDANCE_STATUS_CONFIG[record.status] || ATTENDANCE_STATUS_CONFIG[ATTENDANCE_STATUSES.PRESENT];
-  return (
-    <div className="flex items-start gap-3 py-3 border-b border-white/6 last:border-0">
-      <div className="mt-0.5 shrink-0">
-        <div className="w-1.5 h-1.5 rounded-full mt-1.5" style={{ background: cfg.color }} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-white/80 text-sm font-body">{fmtDate(record.date)}</p>
-          <span className="px-2 py-0.5 rounded-lg text-[11px] font-display font-bold shrink-0"
-            style={{ background: cfg.bg, color: cfg.color }}>
-            {cfg.full}
-          </span>
-        </div>
-        {record.subject && (
-          <p className="text-white/30 text-xs font-body mt-0.5">{record.subject}</p>
-        )}
-        {record.minutesLate > 0 && (
-          <p className="text-yellow-400/70 text-xs font-body flex items-center gap-1 mt-0.5">
-            <Clock size={10} /> {record.minutesLate} min late
-          </p>
-        )}
-        {(record.checkInTime || record.checkOutTime) && (
-          <p className="text-white/30 text-xs font-body mt-0.5">
-            {record.checkInTime && `In: ${record.checkInTime}`}
-            {record.checkInTime && record.checkOutTime && ' · '}
-            {record.checkOutTime && `Out: ${record.checkOutTime}`}
-          </p>
-        )}
-        {record.note && (
-          <p className="text-white/40 text-xs font-body italic mt-0.5">"{record.note}"</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Component ───────────────────────────────────────────────────────────
-export default function AttendanceRecords() {
-  const { userId, userType } = useAuth();
-  const [records,  setRecords]  = useState([]);
-  const [profile,  setProfile]  = useState(null);
-  const [loading,  setLoading]  = useState(true);
-  const [view,     setView]     = useState('monthly'); // monthly | weekly
-
-  useEffect(() => {
-    if (!userId) return;
-    // Load profile to get standard/division
-    getProfile(userId).then(setProfile).catch(() => {});
-    // Live attendance listener
-    const unsub = getStudentAttendance(userId, data => {
-      setRecords(data);
-      setLoading(false);
-    });
-    return unsub;
-  }, [userId]);
-
-  const grouped = useMemo(() => groupByMonth(records), [records]);
-
-  return (
-    <div className="min-h-screen mesh-bg flex flex-col">
-      <TopBar title="My Attendance" />
 
       <div className="flex-1 overflow-y-auto px-4 pt-4 pb-28">
-        {/* Centered page title */}
-        <h2 className="text-white font-display font-extrabold text-xl text-center mb-4">
-          My Attendance
-        </h2>
-
-        {loading ? (
-          <div className="flex flex-col gap-3">
-            {[1, 2, 3].map(i => <div key={i} className="h-24 rounded-2xl bg-white/5 animate-pulse" />)}
-          </div>
-        ) : (
-          <>
-            <SummaryStats
-              records={records}
-              standard={profile?.standard}
-              division={profile?.division}
-            />
-
-            {/* History */}
-            {Object.keys(grouped).length === 0 ? (
-              <div className="text-center py-12">
-                <Calendar size={32} className="text-white/20 mx-auto mb-3" />
-                <p className="text-white/30 font-body">No attendance records yet</p>
-              </div>
-            ) : (
-              Object.entries(grouped).map(([month, recs]) => (
-                <div key={month} className="mb-4">
-                  <p className="text-white/40 text-xs font-body font-semibold uppercase tracking-wider mb-2">
-                    {month}
-                  </p>
-                  <div className="glass-card px-4 py-1">
-                    {recs.map(r => <RecordRow key={r.id} record={r} />)}
-                  </div>
-                </div>
-              ))
-            )}
-          </>
+        {isStudent && <RecordsList studentId={userId} />}
+        {isParent && (
+          loadingChildren ? (
+            <div className="flex flex-col gap-3">
+              {[1,2,3].map(i => <div key={i} className="h-16 rounded-2xl bg-gray-100 animate-pulse" />)}
+            </div>
+          ) : selectedChild ? (
+            <RecordsList studentId={selectedChild.id} studentName={selectedChild.name} />
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-20 text-center">
+              <ClipboardList size={32} className="text-gray-300" />
+              <p className="text-gray-400 font-body">No linked children found</p>
+            </div>
+          )
         )}
       </div>
-
       <BottomNav userType={userType} />
     </div>
   );
