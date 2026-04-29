@@ -6,6 +6,7 @@ import {
   ShieldCheck, ChevronRight, FileText, ClipboardList, DollarSign
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import useBackGuard from '../../hooks/useBackGuard';
 import { logoutUser } from '../../services/auth';
 import { adminGetStats, getFinancialReports } from '../../services/firestore';
 import { ROUTES } from '../../utils/constants';
@@ -44,6 +45,7 @@ function NavRow({ icon: Icon, label, sub, color, route, badge }) {
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  useBackGuard(); // Prevent device back going to Login
   const [stats, setStats]     = useState(null);
   const [reports, setReports] = useState([]);
 
