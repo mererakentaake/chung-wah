@@ -6,6 +6,7 @@ import {
   ClipboardList, Receipt, LogOut, Calculator, ChevronRight, AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import useBackGuard from '../../hooks/useBackGuard';
 import { useAuth } from '../../context/AuthContext';
 import { logoutUser } from '../../services/auth';
 import { getAllFees, getExpenses } from '../../services/firestore';
@@ -48,6 +49,7 @@ function NavCard({ icon: Icon, color, title, subtitle, route }) {
 
 export default function AccountsDashboard() {
   const { user, schoolCode, userType } = useAuth();
+  useBackGuard(); // Prevent device back going to Login
   const navigate = useNavigate();
   const [fees, setFees] = useState([]);
   const [expenses, setExpenses] = useState([]);
