@@ -416,3 +416,9 @@ export const adminGetNextEnrolNo = async () => {
   });
   return `CHW${String(max + 1).padStart(4, '0')}`;
 };
+
+// ─── Chat Users ───────────────────────────────────────────────────────────────
+export const getChatUsers = async () => {
+  const snap = await getDocs(collection(db, 'Login', 'Parent-Teacher', 'users'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
