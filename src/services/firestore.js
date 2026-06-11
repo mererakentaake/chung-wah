@@ -6,26 +6,26 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './firebase';
 
-const schoolCode = () => localStorage.getItem('schoolCode') || '';
+// No school prefix — this app is for Chung Wah School only.
 const userId = () => localStorage.getItem('userId') || '';
 
-// ─── Profile ────────────────────────────────────────────────────────────────
-export const getProfile = async (uid, type = 'users') => {
-  const snap = await getDoc(doc(db, 'schools', schoolCode(), type, uid));
+// ─── Profile ─────────────────────────────────────────────────────────────────
+export const getProfile = async (uid) => {
+  const snap = await getDoc(doc(db, 'users', uid));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 };
 
 export const updateProfilePhoto = async (uid, photoUrl) => {
-  await setDoc(doc(db, 'schools', schoolCode(), 'users', uid), { photoUrl }, { merge: true });
+  await setDoc(doc(db, 'users', uid), { photoUrl }, { merge: true });
 };
 
-export const updateProfile = async (uid, data, type = 'users') => {
-  await setDoc(doc(db, 'schools', schoolCode(), type, uid), data, { merge: true });
+export const updateProfile = async (uid, data) => {
+  await setDoc(doc(db, 'users', uid), data, { merge: true });
 };
 
-// ─── Profile Correction Requests ────────────────────────────────────────────
+// ─── Profile Correction Requests ─────────────────────────────────────────────
 export const requestProfileCorrection = async (message) => {
-  await addDoc(collection(db, 'schools', schoolCode(), 'profileCorrections'), {
+  await addDoc(collection(db, 'profileCorrections'), {
     userId: userId(),
     message: message.trim(),
     status: 'pending',
@@ -33,10 +33,10 @@ export const requestProfileCorrection = async (message) => {
   });
 };
 
-// ─── Guardian / Parent Requests ─────────────────────────────────────────────
+// ─── Guardian / Parent Requests ──────────────────────────────────────────────
 export const getGuardianRequests = (studentDocId, callback) => {
   const q = query(
-    collection(db, 'schools', schoolCode(), 'guardianRequests'),
+    collection(db, 'guardianRequests'),
     where('studentDocId', '==', studentDocId),
     where('status', '==', 'pending')
   );
@@ -47,22 +47,18 @@ export const getGuardianRequests = (studentDocId, callback) => {
 
 export const respondToGuardianRequest = async (requestId, accepted, parentDocId) => {
   const status = accepted ? 'confirmed' : 'rejected';
-  await updateDoc(
-    doc(db, 'schools', schoolCode(), 'guardianRequests', requestId),
-    { status, respondedAt: serverTimestamp() }
-  );
+  await updateDoc(doc(db, 'guardianRequests', requestId), {
+    status, respondedAt: serverTimestamp(),
+  });
   if (accepted) {
-    await setDoc(
-      doc(db, 'schools', schoolCode(), 'users', userId()),
-      { [`guardians.${parentDocId}`]: 'confirmed' },
-      { merge: true }
-    );
+    await setDoc(doc(db, 'users', userId()),
+      { [`guardians.${parentDocId}`]: 'confirmed' }, { merge: true });
   }
 };
 
 export const getParentGuardianLinks = (parentDocId, callback) => {
   const q = query(
-    collection(db, 'schools', schoolCode(), 'guardianRequests'),
+    collection(db, 'guardianRequests'),
     where('parentDocId', '==', parentDocId)
   );
   return onSnapshot(q, snap =>
@@ -70,67 +66,56 @@ export const getParentGuardianLinks = (parentDocId, callback) => {
   );
 };
 
-// ─── Announcements ──────────────────────────────────────────────────────────
+// ─── Announcements ───────────────────────────────────────────────────────────
 export const getAnnouncements = (standard, division, callback) => {
-  let q = query(
-    collection(db, 'schools', schoolCode(), 'announcements'),
+  const q = query(
+    collection(db, 'announcements'),
     orderBy('createdAt', 'desc'),
     limit(30)
   );
-  if (standard && division) {
-    q = query(q, where('standard', '==', standard), where('division', '==', division.toUpperCase()));
-  }
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-  });
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
 };
 
 export const createAnnouncement = async (data) => {
-  await addDoc(collection(db, 'schools', schoolCode(), 'announcements'), {
+  await addDoc(collection(db, 'announcements'), {
     ...data,
     authorId: userId(),
     createdAt: serverTimestamp(),
   });
 };
 
-// ─── Assignments ─────────────────────────────────────────────────────────────
+// ─── Assignments ──────────────────────────────────────────────────────────────
 export const getAssignments = (callback) => {
-  const q = query(
-    collection(db, 'schools', schoolCode(), 'assignments'),
-    orderBy('createdAt', 'desc')
+  const q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
   );
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-  });
 };
 
 export const uploadAssignment = async (data, file) => {
   let fileUrl = null;
   if (file) {
-    const storageRef = ref(storage, `schools/${schoolCode()}/assignments/${Date.now()}_${file.name}`);
+    const storageRef = ref(storage, `assignments/${Date.now()}_${file.name}`);
     await uploadBytes(storageRef, file);
     fileUrl = await getDownloadURL(storageRef);
   }
-  await addDoc(collection(db, 'schools', schoolCode(), 'assignments'), {
-    ...data,
-    fileUrl,
-    authorId: userId(),
-    createdAt: serverTimestamp(),
+  await addDoc(collection(db, 'assignments'), {
+    ...data, fileUrl, authorId: userId(), createdAt: serverTimestamp(),
   });
 };
 
-// ─── Student Reports (teacher writes) ────────────────────────────────────────
+// ─── Student Reports ──────────────────────────────────────────────────────────
 export const createStudentReport = async (data) => {
-  await addDoc(collection(db, 'schools', schoolCode(), 'studentReports'), {
-    ...data,
-    teacherId: userId(),
-    createdAt: serverTimestamp(),
+  await addDoc(collection(db, 'studentReports'), {
+    ...data, teacherId: userId(), createdAt: serverTimestamp(),
   });
 };
 
 export const getStudentReportsByTeacher = (callback) => {
   const q = query(
-    collection(db, 'schools', schoolCode(), 'studentReports'),
+    collection(db, 'studentReports'),
     where('teacherId', '==', userId()),
     orderBy('createdAt', 'desc'),
     limit(50)
@@ -142,7 +127,7 @@ export const getStudentReportsByTeacher = (callback) => {
 
 export const getStudentReports = (studentId, callback) => {
   const q = query(
-    collection(db, 'schools', schoolCode(), 'studentReports'),
+    collection(db, 'studentReports'),
     where('studentId', '==', studentId),
     orderBy('createdAt', 'desc')
   );
@@ -152,54 +137,30 @@ export const getStudentReports = (studentId, callback) => {
 };
 
 // ─── Attendance ───────────────────────────────────────────────────────────────
-// Teacher submits a full class roll-call for a given date
 export const submitAttendance = async ({ date, standard, division, subject, records }) => {
-  // records: [{ studentId, studentName, status, note?, checkInTime?, checkOutTime?, minutesLate? }]
   const docId = `${date}_${standard}${division}`;
-  await setDoc(doc(db, 'schools', schoolCode(), 'attendance', docId), {
-    date,
-    standard,
-    division,
-    subject: subject || '',
-    records,
-    teacherId: userId(),
-    submittedAt: serverTimestamp(),
+  await setDoc(doc(db, 'attendance', docId), {
+    date, standard, division, subject: subject || '',
+    records, teacherId: userId(), submittedAt: serverTimestamp(),
   }, { merge: true });
-  // Also write individual student attendance docs for easy querying
   await Promise.all(records.map(r =>
-    setDoc(
-      doc(db, 'schools', schoolCode(), 'studentAttendance', `${date}_${r.studentId}`),
-      {
-        date,
-        studentId: r.studentId,
-        studentName: r.studentName,
-        status: r.status,
-        note: r.note || '',
-        checkInTime: r.checkInTime || '',
-        checkOutTime: r.checkOutTime || '',
-        minutesLate: r.minutesLate || 0,
-        standard,
-        division,
-        subject: subject || '',
-        teacherId: userId(),
-        submittedAt: serverTimestamp(),
-      },
-      { merge: true }
-    )
+    setDoc(doc(db, 'studentAttendance', `${date}_${r.studentId}`), {
+      date, studentId: r.studentId, studentName: r.studentName,
+      status: r.status, note: r.note || '',
+      standard, division, subject: subject || '',
+      teacherId: userId(), submittedAt: serverTimestamp(),
+    }, { merge: true })
   ));
 };
 
-// Get attendance records for a class on a given date
 export const getClassAttendance = async (date, standard, division) => {
-  const docId = `${date}_${standard}${division}`;
-  const snap = await getDoc(doc(db, 'schools', schoolCode(), 'attendance', docId));
+  const snap = await getDoc(doc(db, 'attendance', `${date}_${standard}${division}`));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 };
 
-// Live listener for a student's own attendance
 export const getStudentAttendance = (studentId, callback) => {
   const q = query(
-    collection(db, 'schools', schoolCode(), 'studentAttendance'),
+    collection(db, 'studentAttendance'),
     where('studentId', '==', studentId),
     orderBy('date', 'desc'),
     limit(60)
@@ -209,10 +170,9 @@ export const getStudentAttendance = (studentId, callback) => {
   );
 };
 
-// Get recent attendance records submitted by a teacher
 export const getTeacherAttendanceHistory = (callback) => {
   const q = query(
-    collection(db, 'schools', schoolCode(), 'attendance'),
+    collection(db, 'attendance'),
     where('teacherId', '==', userId()),
     orderBy('submittedAt', 'desc'),
     limit(30)
@@ -222,40 +182,31 @@ export const getTeacherAttendanceHistory = (callback) => {
   );
 };
 
-// ─── Fees (Accounts manages, Students/Parents read) ──────────────────────────
-// Accounts creates/updates a fee record for a student
+// ─── Fees ─────────────────────────────────────────────────────────────────────
 export const upsertStudentFee = async (studentId, feeData) => {
   const docId = `${feeData.term}_${studentId}`.replace(/\s+/g, '_');
-  await setDoc(
-    doc(db, 'schools', schoolCode(), 'fees', docId),
-    {
-      ...feeData,
-      studentId,
-      updatedAt: serverTimestamp(),
-      updatedBy: userId(),
-    },
-    { merge: true }
-  );
+  await setDoc(doc(db, 'fees', docId), {
+    ...feeData, studentId,
+    updatedAt: serverTimestamp(), updatedBy: userId(),
+  }, { merge: true });
 };
 
-// Record a payment against an existing fee doc
 export const recordPayment = async (feeDocId, paymentData) => {
-  const feeRef = doc(db, 'schools', schoolCode(), 'fees', feeDocId);
+  const feeRef = doc(db, 'fees', feeDocId);
   const snap = await getDoc(feeRef);
   if (!snap.exists()) throw new Error('Fee record not found');
   const existing = snap.data();
-  const payments = existing.payments || [];
-  payments.push({ ...paymentData, recordedAt: new Date().toISOString(), recordedBy: userId() });
+  const payments = [...(existing.payments || []),
+    { ...paymentData, recordedAt: new Date().toISOString(), recordedBy: userId() }];
   const totalPaid = payments.reduce((s, p) => s + (p.amount || 0), 0);
   const balance = (existing.amount || 0) - totalPaid;
   const status = balance <= 0 ? 'paid' : totalPaid > 0 ? 'partial' : existing.status;
   await updateDoc(feeRef, { payments, totalPaid, balance, status, updatedAt: serverTimestamp() });
 };
 
-// Student or Parent reads their own fee records
 export const getStudentFees = (studentId, callback) => {
   const q = query(
-    collection(db, 'schools', schoolCode(), 'fees'),
+    collection(db, 'fees'),
     where('studentId', '==', studentId),
     orderBy('updatedAt', 'desc')
   );
@@ -264,53 +215,36 @@ export const getStudentFees = (studentId, callback) => {
   );
 };
 
-// Accounts reads all fees
 export const getAllFees = (callback) => {
-  const q = query(
-    collection(db, 'schools', schoolCode(), 'fees'),
-    orderBy('updatedAt', 'desc'),
-    limit(200)
-  );
+  const q = query(collection(db, 'fees'), orderBy('updatedAt', 'desc'), limit(200));
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
   );
 };
 
-// ─── Expenses ────────────────────────────────────────────────────────────────
+// ─── Expenses ─────────────────────────────────────────────────────────────────
 export const addExpense = async (data) => {
-  await addDoc(collection(db, 'schools', schoolCode(), 'expenses'), {
-    ...data,
-    recordedBy: userId(),
-    createdAt: serverTimestamp(),
+  await addDoc(collection(db, 'expenses'), {
+    ...data, recordedBy: userId(), createdAt: serverTimestamp(),
   });
 };
 
 export const getExpenses = (callback) => {
-  const q = query(
-    collection(db, 'schools', schoolCode(), 'expenses'),
-    orderBy('createdAt', 'desc'),
-    limit(100)
-  );
+  const q = query(collection(db, 'expenses'), orderBy('createdAt', 'desc'), limit(100));
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
   );
 };
 
-// ─── Financial Reports (Accounts generates, Admin reads) ─────────────────────
+// ─── Financial Reports ────────────────────────────────────────────────────────
 export const saveFinancialReport = async (reportData) => {
-  await addDoc(collection(db, 'schools', schoolCode(), 'financialReports'), {
-    ...reportData,
-    generatedBy: userId(),
-    generatedAt: serverTimestamp(),
+  await addDoc(collection(db, 'financialReports'), {
+    ...reportData, generatedBy: userId(), generatedAt: serverTimestamp(),
   });
 };
 
 export const getFinancialReports = (callback) => {
-  const q = query(
-    collection(db, 'schools', schoolCode(), 'financialReports'),
-    orderBy('generatedAt', 'desc'),
-    limit(20)
-  );
+  const q = query(collection(db, 'financialReports'), orderBy('generatedAt', 'desc'), limit(20));
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
   );
@@ -319,49 +253,41 @@ export const getFinancialReports = (callback) => {
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 export const getChats = (chatId, callback) => {
   const q = query(
-    collection(db, 'schools', schoolCode(), 'chats', chatId, 'messages'),
+    collection(db, 'chats', chatId, 'messages'),
     orderBy('createdAt', 'asc')
   );
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-  });
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
 };
 
 export const sendMessage = async (chatId, text) => {
-  await addDoc(collection(db, 'schools', schoolCode(), 'chats', chatId, 'messages'), {
-    text,
-    senderId: userId(),
-    createdAt: serverTimestamp(),
+  await addDoc(collection(db, 'chats', chatId, 'messages'), {
+    text, senderId: userId(), createdAt: serverTimestamp(),
   });
-};
-
-export const getChatUsers = async () => {
-  const snap = await getDocs(collection(db, 'schools', schoolCode(), 'Parent-Teacher'));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
 
 // ─── Holidays ─────────────────────────────────────────────────────────────────
 export const getHolidays = async (year, month) => {
-  const snap = await getDocs(
-    query(collection(db, 'schools', schoolCode(), 'holidays'),
-      where('year', '==', year), where('month', '==', month))
-  );
+  const snap = await getDocs(query(
+    collection(db, 'holidays'),
+    where('year', '==', year), where('month', '==', month)
+  ));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
 
-// ─── Timetable ───────────────────────────────────────────────────────────────
+// ─── Timetable ────────────────────────────────────────────────────────────────
 export const getTimeTable = async (standard, division) => {
-  const snap = await getDoc(
-    doc(db, 'schools', schoolCode(), 'timetable', `${standard}${division}`)
-  );
+  const snap = await getDoc(doc(db, 'timetable', `${standard}${division}`));
   return snap.exists() ? snap.data() : null;
 };
 
-// ─── Students / Children (parent panel) ──────────────────────────────────────
+// ─── Children (parent panel) ──────────────────────────────────────────────────
 export const getChildren = async (childIds) => {
   if (!childIds || Object.keys(childIds).length === 0) return [];
-  const ids = Object.values(childIds);
-  const results = await Promise.all(ids.map(id => getDoc(doc(db, 'schools', schoolCode(), 'users', id))));
+  const results = await Promise.all(
+    Object.values(childIds).map(id => getDoc(doc(db, 'users', id)))
+  );
   return results.filter(s => s.exists()).map(s => ({ id: s.id, ...s.data() }));
 };
 
@@ -376,107 +302,77 @@ export const uploadFile = async (file, path) => {
 // ADMIN OPERATIONS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const adminSchoolCode = () => localStorage.getItem('schoolCode') || '';
-
 export const adminGetStudents = async () => {
-  const snap = await getDocs(
-    collection(db, 'schools', adminSchoolCode(), 'Login', 'Student', 'users')
-  );
+  const snap = await getDocs(collection(db, 'Login', 'Student', 'users'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
 
 export const adminGetTeachersParents = async () => {
-  const snap = await getDocs(
-    collection(db, 'schools', adminSchoolCode(), 'Login', 'Parent-Teacher', 'users')
-  );
+  const snap = await getDocs(collection(db, 'Login', 'Parent-Teacher', 'users'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
 
 export const adminCreateStudent = async (data) => {
-  const ref = await addDoc(
-    collection(db, 'schools', adminSchoolCode(), 'Login', 'Student', 'users'),
-    {
-      ...data,
-      email: data.email.toLowerCase().trim(),
-      createdAt: new Date().toISOString(),
-      createdBy: userId(),
-    }
-  );
+  const ref = await addDoc(collection(db, 'Login', 'Student', 'users'), {
+    ...data,
+    email: data.email.toLowerCase().trim(),
+    createdAt: new Date().toISOString(),
+    createdBy: userId(),
+  });
   return ref.id;
 };
 
-const adminCreateGuardianRequests = async (parentDocId, parentName, parentTitle, relationshipType, children) => {
-  await Promise.all(
-    children.map(child =>
-      addDoc(collection(db, 'schools', adminSchoolCode(), 'guardianRequests'), {
-        parentDocId,
-        parentName,
-        parentTitle,
-        relationshipType,
+export const adminCreateTeacherParent = async (data) => {
+  const { children = [], ...rest } = data;
+  const docRef = await addDoc(collection(db, 'Login', 'Parent-Teacher', 'users'), {
+    ...rest,
+    email: rest.email.toLowerCase().trim(),
+    isATeacher: rest.isATeacher ?? true,
+    children: children.map(c => ({ ...c, status: 'pending' })),
+    createdAt: new Date().toISOString(),
+    createdBy: userId(),
+  });
+  if (!rest.isATeacher && children.length > 0) {
+    await Promise.all(children.map(child =>
+      addDoc(collection(db, 'guardianRequests'), {
+        parentDocId: docRef.id,
+        parentName: rest.displayName,
+        parentTitle: rest.title || '',
+        relationshipType: rest.relationshipType || 'Parent',
         studentDocId: child.studentId,
         studentName: child.studentName,
         status: 'pending',
         createdAt: new Date().toISOString(),
       })
-    )
-  );
-};
-
-export const adminCreateTeacherParent = async (data) => {
-  const { children = [], ...rest } = data;
-  const docRef = await addDoc(
-    collection(db, 'schools', adminSchoolCode(), 'Login', 'Parent-Teacher', 'users'),
-    {
-      ...rest,
-      email: rest.email.toLowerCase().trim(),
-      isATeacher: rest.isATeacher ?? true,
-      children: children.map(c => ({ ...c, status: 'pending' })),
-      createdAt: new Date().toISOString(),
-      createdBy: userId(),
-    }
-  );
-  if (!rest.isATeacher && children.length > 0) {
-    await adminCreateGuardianRequests(
-      docRef.id,
-      rest.displayName,
-      rest.title || '',
-      rest.relationshipType || 'Parent',
-      children
-    );
+    ));
   }
   return docRef.id;
 };
 
 export const adminUpdateStudent = async (docId, data) => {
-  await updateDoc(
-    doc(db, 'schools', adminSchoolCode(), 'Login', 'Student', 'users', docId),
-    { ...data, updatedAt: new Date().toISOString() }
-  );
+  await updateDoc(doc(db, 'Login', 'Student', 'users', docId), {
+    ...data, updatedAt: new Date().toISOString(),
+  });
 };
 
 export const adminUpdateTeacherParent = async (docId, data) => {
-  await updateDoc(
-    doc(db, 'schools', adminSchoolCode(), 'Login', 'Parent-Teacher', 'users', docId),
-    { ...data, updatedAt: new Date().toISOString() }
-  );
+  await updateDoc(doc(db, 'Login', 'Parent-Teacher', 'users', docId), {
+    ...data, updatedAt: new Date().toISOString(),
+  });
 };
 
 export const adminDeleteStudent = async (docId) => {
-  await deleteDoc(
-    doc(db, 'schools', adminSchoolCode(), 'Login', 'Student', 'users', docId)
-  );
+  await deleteDoc(doc(db, 'Login', 'Student', 'users', docId));
 };
 
 export const adminDeleteTeacherParent = async (docId) => {
-  await deleteDoc(
-    doc(db, 'schools', adminSchoolCode(), 'Login', 'Parent-Teacher', 'users', docId)
-  );
+  await deleteDoc(doc(db, 'Login', 'Parent-Teacher', 'users', docId));
 };
 
 export const adminGetStats = async () => {
   const [studentsSnap, teachersSnap] = await Promise.all([
-    getDocs(collection(db, 'schools', adminSchoolCode(), 'Login', 'Student', 'users')),
-    getDocs(collection(db, 'schools', adminSchoolCode(), 'Login', 'Parent-Teacher', 'users')),
+    getDocs(collection(db, 'Login', 'Student', 'users')),
+    getDocs(collection(db, 'Login', 'Parent-Teacher', 'users')),
   ]);
   const teachers = teachersSnap.docs.map(d => d.data());
   return {
@@ -486,24 +382,17 @@ export const adminGetStats = async () => {
   };
 };
 
-// ─── Teacher: Link a guardian to a student ────────────────────────────────────
 export const teacherLinkGuardian = async ({ parentDocId, parentName, parentTitle, relationshipType, studentDocId, studentName }) => {
   const existing = await getDocs(query(
-    collection(db, 'schools', schoolCode(), 'guardianRequests'),
+    collection(db, 'guardianRequests'),
     where('parentDocId', '==', parentDocId),
     where('studentDocId', '==', studentDocId)
   ));
   if (!existing.empty) throw new Error('A link request already exists for this pair.');
-  await addDoc(collection(db, 'schools', schoolCode(), 'guardianRequests'), {
-    parentDocId,
-    parentName,
-    parentTitle,
-    relationshipType,
-    studentDocId,
-    studentName,
-    status: 'pending',
-    createdBy: userId(),
-    createdByRole: 'teacher',
+  await addDoc(collection(db, 'guardianRequests'), {
+    parentDocId, parentName, parentTitle, relationshipType,
+    studentDocId, studentName, status: 'pending',
+    createdBy: userId(), createdByRole: 'teacher',
     createdAt: new Date().toISOString(),
   });
 };
