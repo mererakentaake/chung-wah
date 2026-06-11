@@ -6,19 +6,16 @@ import { USER_TYPES } from '../utils/constants';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser]             = useState(null);
-  const [loading, setLoading]       = useState(true);
-  const [userType, setUserType]     = useState(USER_TYPES.UNKNOWN);
-  const [schoolCode, setSchoolCode] = useState('');
-  const [userId, setUserId]         = useState('');
-  const authSetDirectly             = useRef(false);
+  const [user, setUser]         = useState(null);
+  const [loading, setLoading]   = useState(true);
+  const [userType, setUserType] = useState(USER_TYPES.UNKNOWN);
+  const [userId, setUserId]     = useState('');
+  const authSetDirectly         = useRef(false);
 
-  const setAuthState = (type, code, uid) => {
+  const setAuthState = (type, uid) => {
     authSetDirectly.current = true;
     setUserType(type);
-    setSchoolCode(code);
     setUserId(uid);
-    localStorage.setItem('schoolCode', code || '');
     localStorage.setItem('userId', uid || '');
     setTimeout(() => { authSetDirectly.current = false; }, 3000);
   };
@@ -29,9 +26,7 @@ export function AuthProvider({ children }) {
 
       if (!firebaseUser) {
         setUserType(USER_TYPES.UNKNOWN);
-        setSchoolCode('');
         setUserId('');
-        localStorage.removeItem('schoolCode');
         localStorage.removeItem('userId');
         setLoading(false);
         return;
@@ -42,6 +37,7 @@ export function AuthProvider({ children }) {
         return;
       }
 
+      // Restore session from Firestore
       try {
         const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
         const idToken = await firebaseUser.getIdToken();
@@ -50,14 +46,11 @@ export function AuthProvider({ children }) {
         if (res.ok) {
           const json = await res.json();
           const fields = json.fields || {};
-          const type = fields.userType?.stringValue;
-          const code = fields.schoolCode?.stringValue;
-          const uid  = fields.userId?.stringValue;
+          const type   = fields.userType?.stringValue;
+          const uid    = fields.userId?.stringValue;
           if (type && type !== USER_TYPES.UNKNOWN) {
             setUserType(type);
-            setSchoolCode(code || '');
             setUserId(uid || firebaseUser.uid);
-            localStorage.setItem('schoolCode', code || '');
             localStorage.setItem('userId', uid || firebaseUser.uid);
             setLoading(false);
             return;
@@ -66,27 +59,22 @@ export function AuthProvider({ children }) {
       } catch (_) {}
 
       setUserType(USER_TYPES.UNKNOWN);
-      setSchoolCode('');
       setUserId('');
-      localStorage.removeItem('schoolCode');
       localStorage.removeItem('userId');
       setLoading(false);
     });
     return unsub;
   }, []);
 
-  const isAdmin    = userType === USER_TYPES.ADMIN;
-  const isAccounts = userType === USER_TYPES.ACCOUNTS;
-  const isTeacher  = userType === USER_TYPES.TEACHER;
-  const isStudent  = userType === USER_TYPES.STUDENT;
-  const isParent   = userType === USER_TYPES.PARENT;
-
   return (
     <AuthContext.Provider value={{
-      user, loading, userType, schoolCode, userId,
-      setUserType, setSchoolCode, setUserId,
-      setAuthState,
-      isAdmin, isAccounts, isTeacher, isStudent, isParent,
+      user, loading, userType, userId,
+      setUserType, setUserId, setAuthState,
+      isAdmin:    userType === USER_TYPES.ADMIN,
+      isAccounts: userType === USER_TYPES.ACCOUNTS,
+      isTeacher:  userType === USER_TYPES.TEACHER,
+      isStudent:  userType === USER_TYPES.STUDENT,
+      isParent:   userType === USER_TYPES.PARENT,
     }}>
       {children}
     </AuthContext.Provider>
