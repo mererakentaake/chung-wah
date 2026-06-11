@@ -7,7 +7,7 @@ import {
   onAuthStateChanged,
 } from 'firebase/auth';
 import {
-  doc, getDocs, collection, query, where, setDoc
+  doc, getDoc, getDocs, collection, query, where, setDoc, limit
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { USER_TYPES } from '../utils/constants';
@@ -49,11 +49,8 @@ export const clearSession = async (uid) => {
 };
 
 // ─── Student / Teacher / Parent login ────────────────────────────────────────
-const getLoginCollection = (userType) =>
-  userType === USER_TYPES.STUDENT ? 'Student' : 'Parent-Teacher';
-
 export const checkSchoolAndUser = async ({ email, userType }) => {
-  const loginType = getLoginCollection(userType);
+  const loginType = userType === USER_TYPES.STUDENT ? 'Student' : 'Parent-Teacher';
   const q = query(
     collection(db, 'Login', loginType, 'users'),
     where('email', '==', email.toLowerCase().trim())
@@ -112,84 +109,78 @@ export const registerUser = async ({ email, password, userType }) => {
   return credential.user;
 };
 
-// ─── Admin login ──────────────────────────────────────────────────────────────
+// ─── Admin login — uses Firestore SDK directly (no REST API) ─────────────────
 export const loginAdmin = async ({ email, password }) => {
-  const credential = await signInWithEmailAndPassword(auth, email, password);
-  const uid = credential.user.uid;
-  const idToken = await credential.user.getIdToken();
-  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
-  const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
-  const headers = { Authorization: `Bearer ${idToken}` };
-
-  // Try UID-based doc
-  const uidRes = await fetch(`${base}/admins/${uid}`, { headers });
-  if (uidRes.ok) {
-    await saveSession(uid, { userType: USER_TYPES.ADMIN, userId: uid });
-    localStorage.setItem('userId', uid);
-    return { user: credential.user };
+  // Sign in first so we have an authenticated context for Firestore reads
+  let credential;
+  try {
+    credential = await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    throw err;
   }
+  const uid = credential.user.uid;
 
-  // Try email query
-  const queryRes = await fetch(
-    `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
-    {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        structuredQuery: {
-          from: [{ collectionId: 'admins' }],
-          where: { fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL', value: { stringValue: email.toLowerCase().trim() } } },
-          limit: 1,
-        },
-      }),
+  try {
+    // 1. Check by Firebase Auth UID (document ID = UID)
+    const byUid = await getDoc(doc(db, 'admins', uid));
+    if (byUid.exists()) {
+      await saveSession(uid, { userType: USER_TYPES.ADMIN, userId: uid });
+      localStorage.setItem('userId', uid);
+      return { user: credential.user };
     }
-  );
-  const queryJson = await queryRes.json();
-  if (Array.isArray(queryJson) && queryJson[0]?.document) {
-    await saveSession(uid, { userType: USER_TYPES.ADMIN, userId: uid });
-    localStorage.setItem('userId', uid);
-    return { user: credential.user };
+
+    // 2. Check by email field (document ID = auto-generated)
+    const byEmail = await getDocs(query(
+      collection(db, 'admins'),
+      where('email', '==', email.toLowerCase().trim()),
+      limit(1)
+    ));
+    if (!byEmail.empty) {
+      await saveSession(uid, { userType: USER_TYPES.ADMIN, userId: uid });
+      localStorage.setItem('userId', uid);
+      return { user: credential.user };
+    }
+  } catch (firestoreErr) {
+    // Firestore read failed — likely security rules. Sign out and report.
+    await signOut(auth);
+    throw new Error('FIRESTORE_RULES_BLOCKED');
   }
 
   await signOut(auth);
   throw new Error('NOT_AN_ADMIN');
 };
 
-// ─── Accounts login ───────────────────────────────────────────────────────────
+// ─── Accounts login — uses Firestore SDK directly ────────────────────────────
 export const loginAccounts = async ({ email, password }) => {
-  const credential = await signInWithEmailAndPassword(auth, email, password);
-  const uid = credential.user.uid;
-  const idToken = await credential.user.getIdToken();
-  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
-  const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
-  const headers = { Authorization: `Bearer ${idToken}` };
-
-  const uidRes = await fetch(`${base}/accountsUsers/${uid}`, { headers });
-  if (uidRes.ok) {
-    await saveSession(uid, { userType: USER_TYPES.ACCOUNTS, userId: uid });
-    localStorage.setItem('userId', uid);
-    return { user: credential.user };
+  let credential;
+  try {
+    credential = await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    throw err;
   }
+  const uid = credential.user.uid;
 
-  const queryRes = await fetch(
-    `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
-    {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        structuredQuery: {
-          from: [{ collectionId: 'accountsUsers' }],
-          where: { fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL', value: { stringValue: email.toLowerCase().trim() } } },
-          limit: 1,
-        },
-      }),
+  try {
+    const byUid = await getDoc(doc(db, 'accountsUsers', uid));
+    if (byUid.exists()) {
+      await saveSession(uid, { userType: USER_TYPES.ACCOUNTS, userId: uid });
+      localStorage.setItem('userId', uid);
+      return { user: credential.user };
     }
-  );
-  const queryJson = await queryRes.json();
-  if (Array.isArray(queryJson) && queryJson[0]?.document) {
-    await saveSession(uid, { userType: USER_TYPES.ACCOUNTS, userId: uid });
-    localStorage.setItem('userId', uid);
-    return { user: credential.user };
+
+    const byEmail = await getDocs(query(
+      collection(db, 'accountsUsers'),
+      where('email', '==', email.toLowerCase().trim()),
+      limit(1)
+    ));
+    if (!byEmail.empty) {
+      await saveSession(uid, { userType: USER_TYPES.ACCOUNTS, userId: uid });
+      localStorage.setItem('userId', uid);
+      return { user: credential.user };
+    }
+  } catch (firestoreErr) {
+    await signOut(auth);
+    throw new Error('FIRESTORE_RULES_BLOCKED');
   }
 
   await signOut(auth);
