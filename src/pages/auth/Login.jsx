@@ -9,10 +9,10 @@ import { USER_TYPES, ROUTES } from '../../utils/constants';
 
 const USER_OPTIONS = [
   { label: 'Student',  value: USER_TYPES.STUDENT,  color: '#F4A334' },
-  { label: 'Teacher',  value: USER_TYPES.TEACHER,   color: '#F9C61F' },
   { label: 'Parent',   value: USER_TYPES.PARENT,    color: '#E84545' },
-  { label: 'Accounts', value: USER_TYPES.ACCOUNTS,  color: '#10b981' },
+  { label: 'Teacher',  value: USER_TYPES.TEACHER,   color: '#F9C61F' },
   { label: 'Admin',    value: USER_TYPES.ADMIN,      color: '#a855f7' },
+  { label: 'Accounts', value: USER_TYPES.ACCOUNTS,  color: '#10b981' },
 ];
 
 const ERROR_MSGS = {
@@ -21,6 +21,7 @@ const ERROR_MSGS = {
   'NEEDS_REGISTRATION':      'Account not yet activated. Switch to "Register" below to set your password.',
   'NOT_AN_ADMIN':            'This account does not have admin access.',
   'NOT_AN_ACCOUNTANT':       'This account does not have accounts access.',
+  'FIRESTORE_RULES_BLOCKED': 'Access denied. Ask your admin to update Firestore security rules.',
   'auth/wrong-password':     'Incorrect password.',
   'auth/invalid-credential': 'Incorrect email or password.',
   'auth/user-not-found':     'No account found with that email.',
