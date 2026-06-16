@@ -187,6 +187,37 @@ export const loginAccounts = async ({ email, password }) => {
   throw new Error('NOT_AN_ACCOUNTANT');
 };
 
+
+// ─── Accounts register (first-time activation) ───────────────────────────────
+export const registerAccounts = async ({ email, password }) => {
+  // Check pre-registration
+  const snap = await getDocs(query(
+    collection(db, 'accountsUsers'),
+    where('email', '==', email.toLowerCase().trim()),
+    limit(1)
+  ));
+  if (snap.empty) throw new Error('USER_NOT_PREREGISTERED');
+
+  const credential = await createUserWithEmailAndPassword(auth, email, password);
+  const uid = credential.user.uid;
+  await saveSession(uid, { userType: USER_TYPES.ACCOUNTS, userId: uid });
+  localStorage.setItem('userId', uid);
+  return credential.user;
+};
+
+
+// ─── Accounts self-registration (email must be pre-registered by admin) ───────
+export const registerAccounts = async ({ email, password }) => {
+  const { checkAccountsUser } = await import('./firestore');
+  const existing = await checkAccountsUser(email);
+  if (!existing) throw new Error('USER_NOT_PREREGISTERED');
+  const credential = await createUserWithEmailAndPassword(auth, email, password);
+  const uid = credential.user.uid;
+  await saveSession(uid, { userType: USER_TYPES.ACCOUNTS, userId: uid });
+  localStorage.setItem('userId', uid);
+  return credential.user;
+};
+
 export const logoutUser = async () => {
   const uid = auth.currentUser?.uid;
   if (uid) await clearSession(uid);

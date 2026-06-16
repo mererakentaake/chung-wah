@@ -417,8 +417,63 @@ export const adminGetNextEnrolNo = async () => {
   return `CHW${String(max + 1).padStart(4, '0')}`;
 };
 
+
+// ─── Accounts Users (admin/teacher creates, accounts staff registers) ─────────
+export const adminCreateAccountsUser = async (data) => {
+  const ref = await addDoc(collection(db, 'accountsUsers'), {
+    ...data,
+    email: data.email.toLowerCase().trim(),
+    role: 'accounts',
+    createdAt: new Date().toISOString(),
+    createdBy: userId(),
+  });
+  return ref.id;
+};
+
+export const adminGetAccountsUsers = async () => {
+  const snap = await getDocs(collection(db, 'accountsUsers'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+export const adminUpdateAccountsUser = async (docId, data) => {
+  await updateDoc(doc(db, 'accountsUsers', docId), {
+    ...data, updatedAt: new Date().toISOString(),
+  });
+};
+
+export const adminDeleteAccountsUser = async (docId) => {
+  await deleteDoc(doc(db, 'accountsUsers', docId));
+};
+
+export const checkAccountsUser = async (email) => {
+  const q = query(
+    collection(db, 'accountsUsers'),
+    where('email', '==', email.toLowerCase().trim()),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  return { id: snap.docs[0].id, ...snap.docs[0].data() };
+};
+
 // ─── Chat Users ───────────────────────────────────────────────────────────────
 export const getChatUsers = async () => {
   const snap = await getDocs(collection(db, 'Login', 'Parent-Teacher', 'users'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+// ─── Accounts Users (Admin/Teacher pre-registers) ─────────────────────────────
+export const adminCreateAccountsUser = async (data) => {
+  const ref = await addDoc(collection(db, 'accountsUsers'), {
+    ...data,
+    email: data.email.toLowerCase().trim(),
+    createdAt: new Date().toISOString(),
+    createdBy: userId(),
+  });
+  return ref.id;
+};
+
+export const adminGetAccountsUsers = async () => {
+  const snap = await getDocs(collection(db, 'accountsUsers'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
