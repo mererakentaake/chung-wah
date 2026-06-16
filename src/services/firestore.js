@@ -461,19 +461,3 @@ export const getChatUsers = async () => {
   const snap = await getDocs(collection(db, 'Login', 'Parent-Teacher', 'users'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
-
-// ─── Accounts Users (Admin/Teacher pre-registers) ─────────────────────────────
-export const adminCreateAccountsUser = async (data) => {
-  const ref = await addDoc(collection(db, 'accountsUsers'), {
-    ...data,
-    email: data.email.toLowerCase().trim(),
-    createdAt: new Date().toISOString(),
-    createdBy: userId(),
-  });
-  return ref.id;
-};
-
-export const adminGetAccountsUsers = async () => {
-  const snap = await getDocs(collection(db, 'accountsUsers'));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-};
