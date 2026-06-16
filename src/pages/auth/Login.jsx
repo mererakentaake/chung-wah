@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, AlertCircle, ShieldCheck, Calculator } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { loginUser, registerUser, loginAdmin, loginAccounts } from '../../services/auth';
+import { loginUser, registerUser, loginAdmin, loginAccounts, registerAccounts } from '../../services/auth';
 import { useAuth } from '../../context/AuthContext';
 import { USER_TYPES, ROUTES } from '../../utils/constants';
 
@@ -44,13 +44,13 @@ export default function Login() {
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
   const isAdmin    = userType === USER_TYPES.ADMIN;
   const isAccounts = userType === USER_TYPES.ACCOUNTS;
-  const isPrivileged = isAdmin || isAccounts;
+  const isPrivileged = isAdmin;
   const activeColor = USER_OPTIONS.find(o => o.value === userType)?.color || '#F4A334';
 
   const handleTypeChange = (type) => {
     setUserType(type);
     setError('');
-    if (type === USER_TYPES.ADMIN || type === USER_TYPES.ACCOUNTS) setMode('login');
+    if (type === USER_TYPES.ADMIN) setMode('login');
   };
 
   const resolveLoginType = (type) =>
@@ -74,10 +74,15 @@ export default function Login() {
         setAuthState(USER_TYPES.ADMIN, user.uid);
         toast.success('Welcome, Admin!');
         navigate(ROUTES.ADMIN_DASHBOARD, { replace: true });
-      } else if (isAccounts) {
+      } else if (isAccounts && mode === 'login') {
         const { user } = await loginAccounts({ email, password });
         setAuthState(USER_TYPES.ACCOUNTS, user.uid);
         toast.success('Welcome to Accounts!');
+        navigate(ROUTES.ACCOUNTS_DASHBOARD, { replace: true });
+      } else if (isAccounts && mode === 'register') {
+        const user = await registerAccounts({ email, password });
+        setAuthState(USER_TYPES.ACCOUNTS, user.uid);
+        toast.success('Accounts account created!');
         navigate(ROUTES.ACCOUNTS_DASHBOARD, { replace: true });
       } else if (mode === 'login') {
         const loginType = resolveLoginType(userType);
@@ -146,7 +151,9 @@ export default function Login() {
         {isAccounts && (
           <div className="flex items-start gap-2.5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 mb-4">
             <Calculator size={15} className="text-emerald-500 shrink-0 mt-0.5" />
-            <p className="text-emerald-600 text-xs font-body">Accounts access is restricted to finance staff.</p>
+            <p className="text-emerald-600 text-xs font-body">
+              Your email must be pre-registered by the Admin or a Teacher before you can activate your account.
+            </p>
           </div>
         )}
 
@@ -207,7 +214,7 @@ export default function Login() {
             }
           </button>
 
-          {!isPrivileged && (
+          {!isAdmin && (
             <p className="text-center text-gray-400 font-body text-sm">
               {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
               <button onClick={() => { setMode(m => m === 'login' ? 'register' : 'login'); setError(''); }}
