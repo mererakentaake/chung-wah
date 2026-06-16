@@ -1,6 +1,6 @@
 // src/App.jsx
-import React, { useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import React from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { USER_TYPES, ROUTES } from './utils/constants';
 
@@ -101,8 +101,6 @@ function RequireNoAuth({ children }) {
 export default function App() {
   const STUDENT_TEACHER_PARENT = [USER_TYPES.STUDENT, USER_TYPES.TEACHER, USER_TYPES.PARENT];
   const TEACHER_ADMIN          = [USER_TYPES.TEACHER, USER_TYPES.ADMIN];
-  const ALL_ROLES              = Object.values(USER_TYPES).filter(t => t !== USER_TYPES.UNKNOWN);
-
   return (
     <Routes>
       {/* Public */}
