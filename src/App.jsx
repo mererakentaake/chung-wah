@@ -196,16 +196,16 @@ export default function App() {
         <RequireAuth allow={[USER_TYPES.ADMIN]}><AdminDashboard /></RequireAuth>
       } />
       <Route path={ROUTES.ADMIN_STUDENTS} element={
-        <RequireAuth allow={[USER_TYPES.ADMIN]}><ManageStudents /></RequireAuth>
+        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><ManageStudents /></RequireAuth>
       } />
       <Route path={ROUTES.ADMIN_TEACHERS} element={
-        <RequireAuth allow={[USER_TYPES.ADMIN]}><ManageTeachers /></RequireAuth>
+        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><ManageTeachers /></RequireAuth>
       } />
       <Route path={ROUTES.ADMIN_CREATE_USER} element={
         <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><CreateEditUser /></RequireAuth>
       } />
       <Route path={`${ROUTES.ADMIN_EDIT_USER}/:type/:id`} element={
-        <RequireAuth allow={[USER_TYPES.ADMIN]}><CreateEditUser /></RequireAuth>
+        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><CreateEditUser /></RequireAuth>
       } />
       <Route path={ROUTES.ADMIN_FINANCIAL_REPORTS} element={
         <RequireAuth allow={[USER_TYPES.ADMIN]}><AdminFinancialReports /></RequireAuth>
