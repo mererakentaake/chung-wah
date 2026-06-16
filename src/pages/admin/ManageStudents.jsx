@@ -40,9 +40,7 @@ export default function ManageStudents() {
         (s.familyName || '').toLowerCase().includes(q) ||
         (s.email      || '').toLowerCase().includes(q) ||
         (s.enrollNo   || '').toLowerCase().includes(q) ||
-        (s.category   || '').toLowerCase().includes(q) ||
-        (s.standard   || '').toString().toLowerCase().includes(q) ||
-        (s.division   || '').toLowerCase().includes(q)
+        (s.schoolClass || '').toLowerCase().includes(q)
       )
     );
   }, [search, students]);
@@ -139,18 +137,7 @@ function StudentCard({ student, deleting, onEdit, onDelete }) {
   // Initials from given + family
   const initials = [givenName[0], familyName[0]].filter(Boolean).join('').toUpperCase() || '?';
 
-  // Class line — label depends on category
-  const isSecondary  = (student.category || '').toLowerCase() === 'secondary';
-  const levelLabel   = isSecondary ? 'Form' : 'Std';
-  const categoryBadge = student.category || '';
-
-  let classLine = 'No class assigned';
-  if (student.standard && student.division) {
-    classLine = `${levelLabel} ${student.standard} – ${student.division.toUpperCase()}`;
-    if (categoryBadge) classLine += ` · ${categoryBadge}`;
-  } else if (categoryBadge) {
-    classLine = categoryBadge;
-  }
+  const classLine = student.schoolClass || student.category || 'No class assigned';
 
   const enrollLabel = student.enrollNo ? `#${student.enrollNo}` : '';
 

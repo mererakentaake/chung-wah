@@ -333,25 +333,21 @@ export default function CreateEditUser() {
 
   const [form, setForm] = useState({
     givenName: '', familyName: '', displayName: '',
-    email: '', title: '', gender: '', category: '',
-    relationshipType: 'Parent', standard: '', division: '',
+    email: '', title: '', gender: '', schoolClass: '',
+    relationshipType: 'Parent',
     enrollNo: '', subject: '', mobileNo: '', dob: '', bloodGroup: '',
   });
 
   const [children, setChildren] = useState([{ studentId: '', studentName: '', studentClass: '' }]);
 
   // Derived values
-  const standardLabel = form.category === 'Secondary' ? 'Form' : 'Standard';
-  const standardOpts  = form.category === 'Secondary' ? ['One', 'Two', 'Three'] : ['1','2','3','4','5','6'];
-  const standardPH    = form.category === 'Secondary' ? 'Select Form' : 'Select standard';
-  const showClassFields = isStudent && (form.category === 'Primary' || form.category === 'Secondary');
+  const showClassFields = isStudent; // always show for students
 
   // All prerequisite student fields are filled → ready to generate enrol no.
   const readyForEnrol = !!(
     isStudent && !isEdit &&
     form.givenName.trim() && form.familyName.trim() &&
-    form.email.trim() && form.gender && form.category &&
-    (!showClassFields || (form.standard && form.division))
+    form.email.trim() && form.gender && form.schoolClass
   );
 
   // Load students for parent child-search
@@ -408,9 +404,9 @@ export default function CreateEditUser() {
   const setVal = k => v => { setForm(f => ({ ...f, [k]: v }));              setErrors(er => ({ ...er, [k]: '' })); };
 
   const setCategory = (val) => {
-    enrolGuardRef.current = false; // allow fresh generation after category change
-    setForm(f => ({ ...f, category: val, standard: '', division: '', enrollNo: '' }));
-    setErrors(er => ({ ...er, category: '', standard: '', division: '' }));
+    enrolGuardRef.current = false;
+    setForm(f => ({ ...f, schoolClass: val, enrollNo: '' }));
+    setErrors(er => ({ ...er, schoolClass: '' }));
   };
 
   const updateChild = (i, data) => setChildren(prev => prev.map((c, j) => j === i ? { ...c, ...data } : c));
@@ -428,11 +424,7 @@ export default function CreateEditUser() {
       if (!form.familyName.trim())  newErrors.familyName  = BLANK;
       if (!form.email.trim())       newErrors.email       = BLANK;
       if (!form.gender)             newErrors.gender      = BLANK;
-      if (!form.category)           newErrors.category    = BLANK;
-      if (showClassFields) {
-        if (!form.standard)         newErrors.standard    = BLANK;
-        if (!form.division)         newErrors.division    = BLANK;
-      }
+      if (!form.schoolClass)        newErrors.schoolClass = BLANK;
       if (!form.dob)                newErrors.dob         = BLANK;
       if (!form.mobileNo.trim())    newErrors.mobileNo    = BLANK;
     } else if (isAccounts) {
@@ -472,9 +464,8 @@ export default function CreateEditUser() {
           displayName: fullName,
           email: form.email.trim(),
           gender: form.gender,
-          category: form.category,
-          standard: form.standard,
-          division: form.division,
+          schoolClass: form.schoolClass,
+          classSection: getClassSection(form.schoolClass),
           enrollNo: form.enrollNo.trim(),
           mobileNo: form.mobileNo.trim(),
           dob: form.dob,
