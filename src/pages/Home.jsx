@@ -5,7 +5,7 @@ import {
   Users, Megaphone, Calendar, FileText, Bus, BookOpen,
   Baby, CreditCard, Clock, FlaskConical, DollarSign,
   Heart, Stethoscope, Syringe, Tag, Plus, GraduationCap, ClipboardList,
-  CheckCircle, XCircle, ChevronRight, BarChart3, TrendingUp, Receipt
+  CheckCircle, XCircle, ChevronRight, BarChart3, TrendingUp, Receipt, Calculator
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { USER_TYPES, ROUTES } from '../utils/constants';
@@ -112,8 +112,12 @@ function TeacherDashboard({ user, userType }) {
       <DashboardCardFull icon={ClipboardList} label="Student Reports" color="#22c55e" route={ROUTES.STUDENT_REPORTS} description="Submit marks & behaviour reports" />
       <DashboardCardFull icon={Users} label="Link Guardian to Student" color="#e84545" route={ROUTES.LINK_GUARDIAN} description="Assign a parent or guardian to a student" />
       <div className="flex gap-3">
-        <DashboardCardHalf icon={GraduationCap} label="Add Student" color="#F4A334" route={`${ROUTES.ADMIN_CREATE_USER}?type=student`} />
-        <DashboardCardHalf icon={Users} label="Add Parent" color="#E84545" route={`${ROUTES.ADMIN_CREATE_USER}?type=parent`} />
+        <DashboardCardHalf icon={GraduationCap} label="Add Student"  color="#F4A334" route={`${ROUTES.ADMIN_CREATE_USER}?type=student`} />
+        <DashboardCardHalf icon={Users}         label="Add Parent"   color="#E84545" route={`${ROUTES.ADMIN_CREATE_USER}?type=parent`} />
+      </div>
+      <div className="flex gap-3">
+        <DashboardCardHalf icon={ClipboardList} label="Add Teacher"  color="#F9C61F" route={`${ROUTES.ADMIN_CREATE_USER}?type=teacher`} />
+        <DashboardCardHalf icon={Calculator}    label="Add Accounts" color="#10b981" route={`${ROUTES.ADMIN_CREATE_USER}?type=accounts`} />
       </div>
 
       <DashboardCardFull icon={Megaphone} label="Announcements" color="#f59e0b" route={ROUTES.ANNOUNCEMENTS} description="School posts and updates" />
