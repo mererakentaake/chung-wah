@@ -139,8 +139,7 @@ function StudentDashboard({ user }) {
         <p className="text-gray-400 text-sm font-body mb-1">{getGreeting()} 👋</p>
         <h2 className="font-display font-extrabold text-gray-900 text-xl">{user?.displayName || 'Student'}</h2>
         <p className="text-gray-400 text-xs font-body mt-0.5">
-          {user?.standard && user?.division ? `Std ${user.standard} – ${user.division}` : 'Student'}
-          {user?.gender ? ` • ${user.gender}` : ''}
+          {user?.schoolClass || 'Student'}{user?.gender ? ` • ${user.gender}` : ''}
         </p>
       </div>
 
