@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, GraduationCap, UserPlus, BarChart3, Settings, LogOut,
-  ShieldCheck, ChevronRight, FileText, ClipboardList, DollarSign
+  ShieldCheck, ChevronRight, FileText, ClipboardList, DollarSign, Calculator
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useBackGuard from '../../hooks/useBackGuard';
@@ -124,8 +124,14 @@ export default function AdminDashboard() {
             sub="View, add and edit student accounts" color="#F4A334" route={ROUTES.ADMIN_STUDENTS} />
           <NavRow icon={Users} label="Manage Teachers & Parents"
             sub="View, add and edit accounts" color="#6366f1" route={ROUTES.ADMIN_TEACHERS} />
-          <NavRow icon={UserPlus} label="Create New User"
-            sub="Add a student, teacher or parent" color="#22c55e" route={ROUTES.ADMIN_CREATE_USER} />
+          <NavRow icon={GraduationCap} label="Add Student"
+            sub="Pre-register a new student" color="#F4A334" route={`${ROUTES.ADMIN_CREATE_USER}?type=student`} />
+          <NavRow icon={Users} label="Add Parent / Guardian"
+            sub="Pre-register a parent or guardian" color="#E84545" route={`${ROUTES.ADMIN_CREATE_USER}?type=parent`} />
+          <NavRow icon={UserPlus} label="Add Teacher"
+            sub="Pre-register a new teacher" color="#F9C61F" route={`${ROUTES.ADMIN_CREATE_USER}?type=teacher`} />
+          <NavRow icon={Calculator} label="Add Accounts Staff"
+            sub="Pre-register an accounts team member" color="#10b981" route={`${ROUTES.ADMIN_CREATE_USER}?type=accounts`} />
         </div>
 
         {/* Reports */}

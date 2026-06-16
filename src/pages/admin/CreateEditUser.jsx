@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeft, Save, GraduationCap, UserCheck, Users,
+  ArrowLeft, Save, GraduationCap, UserCheck, Users, Calculator,
   Plus, X, Search, ChevronDown, User2, HelpCircle, Heart,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -11,6 +11,7 @@ import {
   adminUpdateStudent, adminUpdateTeacherParent,
   adminGetStudents, adminGetTeachersParents,
   adminGetLinkedParent, adminGetNextEnrolNo,
+  adminCreateAccountsUser, adminUpdateAccountsUser, adminGetAccountsUsers,
 } from '../../services/firestore';
 import { ROUTES, TITLES, GENDERS, RELATIONSHIP_TYPES, USER_TYPES, SUBJECTS } from '../../utils/constants';
 import { useAuth } from '../../context/AuthContext';
@@ -311,11 +312,12 @@ export default function CreateEditUser() {
   const isStudent     = type === 'student';
   const isTeacher     = type === 'teacher';
   const isParent      = type === 'parent';
+  const isAccounts    = type === 'accounts';
   const isTeacherUser = userType === USER_TYPES.TEACHER;
 
-  const color = isStudent ? '#F4A334' : isTeacher ? '#F9C61F' : '#E84545';
-  const Icon  = isStudent ? GraduationCap : isTeacher ? UserCheck : Users;
-  const label = isStudent ? 'Student' : isTeacher ? 'Teacher' : 'Parent / Guardian';
+  const color = isStudent ? '#F4A334' : isTeacher ? '#F9C61F' : isParent ? '#E84545' : '#10b981';
+  const Icon  = isStudent ? GraduationCap : isTeacher ? UserCheck : isParent ? Users : Calculator;
+  const label = isStudent ? 'Student' : isTeacher ? 'Teacher' : isParent ? 'Parent / Guardian' : 'Accounts Staff';
 
   const [loading, setLoading]                 = useState(false);
   const [fetching, setFetching]               = useState(isEdit);
@@ -433,7 +435,9 @@ export default function CreateEditUser() {
       }
       if (!form.dob)                newErrors.dob         = BLANK;
       if (!form.mobileNo.trim())    newErrors.mobileNo    = BLANK;
-      // bloodGroup intentionally skipped — it is optional
+    } else if (isAccounts) {
+      if (!form.displayName.trim()) newErrors.displayName = BLANK;
+      if (!form.email.trim())       newErrors.email       = BLANK;
     } else {
       if (!form.title)              newErrors.title       = BLANK;
       if (!form.displayName.trim()) newErrors.displayName = BLANK;
@@ -479,6 +483,18 @@ export default function CreateEditUser() {
         isEdit ? await adminUpdateStudent(editId, data) : await adminCreateStudent(data);
         toast.success(isEdit ? 'Student updated!' : 'Student added!');
         navigate(isTeacherUser ? ROUTES.HOME : ROUTES.ADMIN_STUDENTS);
+      } else if (isAccounts) {
+        const data = {
+          displayName: form.displayName.trim(),
+          email: form.email.trim(),
+          title: form.title,
+          mobileNo: form.mobileNo.trim(),
+        };
+        isEdit
+          ? await adminUpdateAccountsUser(editId, data)
+          : await adminCreateAccountsUser(data);
+        toast.success(isEdit ? 'Accounts user updated!' : 'Accounts user added!');
+        navigate(isTeacherUser ? ROUTES.HOME : ROUTES.ADMIN_DASHBOARD);
       } else {
         const validChildren = children.filter(c => c.studentId);
         const data = {
@@ -652,6 +668,30 @@ export default function CreateEditUser() {
               {/* Phone No. */}
               <div id="field-mobileNo">
                 <Field label="Phone No." value={form.mobileNo} onChange={set('mobileNo')}
+                  placeholder="+677 xx xxxxx" type="tel" error={errors.mobileNo} />
+              </div>
+            </>
+          )}
+
+          {/* ── ACCOUNTS FIELDS ──────────────────────────── */}
+          {isAccounts && (
+            <>
+              <div id="field-displayName">
+                <Field label="Full Name" value={form.displayName} onChange={set('displayName')}
+                  placeholder="e.g. Jane Smith" error={errors.displayName} />
+              </div>
+              <div id="field-email">
+                <Field label="Email Address" value={form.email} onChange={set('email')}
+                  placeholder="accounts@example.com" type="email" disabled={isEdit}
+                  note={isEdit ? 'Email cannot be changed' : 'Staff will register using this email'}
+                  error={errors.email} />
+              </div>
+              <div id="field-title">
+                <SelectField label="Title (optional)" value={form.title} onChange={set('title')}
+                  options={TITLES} error={errors.title} />
+              </div>
+              <div id="field-mobileNo">
+                <Field label="Mobile No. (optional)" value={form.mobileNo} onChange={set('mobileNo')}
                   placeholder="+677 xx xxxxx" type="tel" error={errors.mobileNo} />
               </div>
             </>
