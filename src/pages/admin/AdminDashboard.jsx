@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, GraduationCap, UserPlus, BarChart3, Settings, LogOut,
-  ShieldCheck, ChevronRight, FileText, ClipboardList, DollarSign, Calculator
+  ShieldCheck, ChevronRight, FileText, ClipboardList, DollarSign, Calculator, BookMarked
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useBackGuard from '../../hooks/useBackGuard';
@@ -135,7 +135,11 @@ export default function AdminDashboard() {
         </div>
 
         {/* Reports */}
-        <p className="text-gray-400 text-xs font-body font-semibold uppercase tracking-wider mb-3">Reports & Finance</p>
+        <p className="text-gray-400 text-xs font-body font-semibold uppercase tracking-wider mb-3">Curriculum</p>
+        <NavRow icon={BookMarked} label="Curriculum Syllabuses"
+          sub="View and manage all class syllabuses" color="#6366f1" route={ROUTES.SYLLABUS} />
+
+        <p className="text-gray-400 text-xs font-body font-semibold uppercase tracking-wider mb-3 mt-6">Reports & Finance</p>
         <div className="flex flex-col gap-3 mb-6">
           <NavRow icon={BarChart3} label="Financial Reports"
             sub="Reports submitted by Accounts team" color="#a855f7" route={ROUTES.ADMIN_FINANCIAL_REPORTS}
