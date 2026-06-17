@@ -456,8 +456,165 @@ export const checkAccountsUser = async (email) => {
   return { id: snap.docs[0].id, ...snap.docs[0].data() };
 };
 
+
+// ─── Student App Access Toggle (parent enables for Grade 6) ──────────────────
+export const toggleStudentAppAccess = async (studentDocId, allow) => {
+  await updateDoc(doc(db, 'Login', 'Student', 'users', studentDocId), {
+    allowAppAccess: allow,
+    appAccessUpdatedAt: serverTimestamp(),
+  });
+};
+
 // ─── Chat Users ───────────────────────────────────────────────────────────────
 export const getChatUsers = async () => {
   const snap = await getDocs(collection(db, 'Login', 'Parent-Teacher', 'users'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SYLLABUS
+// ═══════════════════════════════════════════════════════════════════════════════
+// Structure: syllabuses/{id}
+//   schoolClass, subject, description, schoolYear,
+//   topics: [{ id, title, description, outcomes[], dueDate, isCompleted, completedDate, order }]
+//   createdBy, createdAt, updatedAt
+
+export const saveSyllabus = async (data, existingId = null) => {
+  if (existingId) {
+    await updateDoc(doc(db, 'syllabuses', existingId), {
+      ...data,
+      updatedAt: serverTimestamp(),
+      updatedBy: userId(),
+    });
+    return existingId;
+  }
+  const ref = await addDoc(collection(db, 'syllabuses'), {
+    ...data,
+    createdBy: userId(),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+};
+
+export const getSyllabusesByClass = (schoolClass, callback) => {
+  const q = query(
+    collection(db, 'syllabuses'),
+    where('schoolClass', '==', schoolClass),
+    orderBy('subject', 'asc')
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const getAllSyllabuses = (callback) => {
+  const q = query(collection(db, 'syllabuses'), orderBy('schoolClass', 'asc'));
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const getSyllabusByTeacher = (teacherId, callback) => {
+  const q = query(
+    collection(db, 'syllabuses'),
+    where('createdBy', '==', teacherId),
+    orderBy('schoolClass', 'asc')
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const deleteSyllabus = async (syllabusId) => {
+  await deleteDoc(doc(db, 'syllabuses', syllabusId));
+};
+
+// Mark a topic complete/incomplete and create a syllabus notification
+export const markTopicComplete = async (syllabusId, topics, topicId, isCompleted, schoolClass, subject) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const updatedTopics = topics.map(t => {
+    if (t.id !== topicId) return t;
+    return { ...t, isCompleted, completedDate: isCompleted ? today : null };
+  });
+
+  await updateDoc(doc(db, 'syllabuses', syllabusId), {
+    topics: updatedTopics,
+    updatedAt: serverTimestamp(),
+    updatedBy: userId(),
+  });
+
+  // Create in-app notification for parents of students in this class
+  const topic = topics.find(t => t.id === topicId);
+  if (!topic) return;
+
+  const dueDate = topic.dueDate || null;
+  let notifType = 'topic_complete';
+  if (isCompleted && dueDate && today < dueDate) notifType = 'topic_ahead';
+  if (!isCompleted) return; // only notify on completion
+
+  const nextTopic = updatedTopics.find(t => !t.isCompleted && t.order > (topic.order || 0));
+  const message = notifType === 'topic_ahead'
+    ? `"${topic.title}" in ${subject} was completed ahead of schedule. Moving to "${nextTopic?.title || 'next topic'}".`
+    : `"${topic.title}" in ${subject} has been completed. Moving to "${nextTopic?.title || 'the next topic'}".`;
+
+  await addDoc(collection(db, 'syllabusNotifications'), {
+    type: notifType,
+    syllabusId,
+    topicId,
+    topicTitle: topic.title,
+    schoolClass,
+    subject,
+    message,
+    read: false,
+    createdBy: userId(),
+    createdAt: serverTimestamp(),
+  });
+};
+
+// Called when viewing a syllabus — checks for overdue topics and logs notifications
+export const checkAndFlagOverdueTopics = async (syllabusId, topics, schoolClass, subject) => {
+  const today = new Date().toISOString().slice(0, 10);
+  for (const topic of topics) {
+    if (topic.isCompleted || !topic.dueDate) continue;
+    if (topic.dueDate >= today) continue;
+    // Check if overdue notification already exists for this topic
+    const existing = await getDocs(query(
+      collection(db, 'syllabusNotifications'),
+      where('syllabusId', '==', syllabusId),
+      where('topicId', '==', topic.id),
+      where('type', '==', 'topic_overdue'),
+      limit(1)
+    ));
+    if (!existing.empty) continue;
+    await addDoc(collection(db, 'syllabusNotifications'), {
+      type: 'topic_overdue',
+      syllabusId,
+      topicId: topic.id,
+      topicTitle: topic.title,
+      schoolClass,
+      subject,
+      message: `"${topic.title}" in ${subject} (${schoolClass}) is overdue. The teacher has not yet marked this topic as completed.`,
+      read: false,
+      createdBy: 'system',
+      createdAt: serverTimestamp(),
+    });
+  }
+};
+
+export const getSyllabusNotifications = (schoolClass, callback) => {
+  const q = query(
+    collection(db, 'syllabusNotifications'),
+    where('schoolClass', '==', schoolClass),
+    orderBy('createdAt', 'desc'),
+    limit(30)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const markSyllabusNotificationRead = async (notifId) => {
+  await updateDoc(doc(db, 'syllabusNotifications', notifId), { read: true });
+};
+
