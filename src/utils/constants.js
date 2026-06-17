@@ -57,6 +57,11 @@ export const ROUTES = {
   ADMIN_CREATE_USER: '/admin/create-user',
   ADMIN_EDIT_USER: '/admin/edit-user',
   ADMIN_FINANCIAL_REPORTS: '/admin/financial-reports',
+  // Syllabus
+  SYLLABUS:        '/syllabus',
+  SYLLABUS_CREATE: '/syllabus/create',
+  SYLLABUS_EDIT:   '/syllabus/edit',
+  SYLLABUS_VIEW:   '/syllabus/view',
 };
 
 export const STRINGS = {
@@ -204,3 +209,105 @@ export const EXPENSE_CATEGORIES = [
   'Transport',
   'Other',
 ];
+
+// ─── School Structure ─────────────────────────────────────────────────────────
+export const SCHOOL_STRUCTURE = {
+  EARLY_CHILDHOOD: {
+    label: 'Early Childhood',
+    classes: ['Prep A', 'Prep B', 'Prep C'],
+  },
+  PRIMARY: {
+    label: 'Primary',
+    classes: [
+      'Grade 1A', 'Grade 1B',
+      'Grade 2A', 'Grade 2B',
+      'Grade 3A', 'Grade 3B',
+      'Grade 4A', 'Grade 4B',
+      'Grade 5A', 'Grade 5B',
+      'Grade 6A', 'Grade 6B',
+    ],
+  },
+  SECONDARY: {
+    label: 'Secondary',
+    classes: ['Form 1', 'Form 2', 'Form 3'],
+  },
+};
+
+export const ALL_CLASSES = [
+  ...SCHOOL_STRUCTURE.EARLY_CHILDHOOD.classes,
+  ...SCHOOL_STRUCTURE.PRIMARY.classes,
+  ...SCHOOL_STRUCTURE.SECONDARY.classes,
+];
+
+// Students in these classes cannot log in at all
+export const NO_STUDENT_LOGIN_CLASSES = [
+  'Prep A', 'Prep B', 'Prep C',
+  'Grade 1A', 'Grade 1B',
+  'Grade 2A', 'Grade 2B',
+  'Grade 3A', 'Grade 3B',
+  'Grade 4A', 'Grade 4B',
+  'Grade 5A', 'Grade 5B',
+];
+
+// Students in these classes can log in ONLY if parent has enabled it
+export const PARENT_PERMISSION_CLASSES = ['Grade 6A', 'Grade 6B'];
+
+// Students in these classes can always log in
+export const OPEN_LOGIN_CLASSES = ['Form 1', 'Form 2', 'Form 3'];
+
+// Helper — get section label from class name
+export const getClassSection = (schoolClass = '') => {
+  if (SCHOOL_STRUCTURE.EARLY_CHILDHOOD.classes.includes(schoolClass)) return 'Early Childhood';
+  if (SCHOOL_STRUCTURE.PRIMARY.classes.includes(schoolClass))          return 'Primary';
+  if (SCHOOL_STRUCTURE.SECONDARY.classes.includes(schoolClass))        return 'Secondary';
+  return '';
+};
+
+// Helper — is this a secondary class?
+export const isSecondaryClass = (schoolClass = '') =>
+  SCHOOL_STRUCTURE.SECONDARY.classes.includes(schoolClass);
+
+// ─── Subjects by section ──────────────────────────────────────────────────────
+export const SUBJECTS_BY_SECTION = {
+  EARLY_CHILDHOOD: [
+    'Language & Literacy',
+    'Numeracy',
+    'Creative Arts',
+    'Physical Development',
+    'Social & Emotional Learning',
+    'Environmental Exploration',
+  ],
+  PRIMARY: [
+    'English',
+    'Mathematics',
+    'Science',
+    'Social Studies',
+    'Christian Education',
+    'Physical Education',
+    'Health Education',
+    'ICT / Computer Studies',
+  ],
+  SECONDARY: [
+    'English',
+    'Mathematics',
+    'Science',
+    'Social Studies',
+    'Business Studies',
+    'Agriculture',
+    'Industrial Arts',
+    'Home Economics',
+    'Christian Education',
+    'Physical Education',
+    'ICT / Computer Studies',
+    'Health Education',
+  ],
+};
+
+// Helper — get subjects for a given schoolClass
+export const getSubjectsForClass = (schoolClass = '') => {
+  if (SCHOOL_STRUCTURE.EARLY_CHILDHOOD.classes.includes(schoolClass))
+    return SUBJECTS_BY_SECTION.EARLY_CHILDHOOD;
+  if (SCHOOL_STRUCTURE.SECONDARY.classes.includes(schoolClass))
+    return SUBJECTS_BY_SECTION.SECONDARY;
+  return SUBJECTS_BY_SECTION.PRIMARY;
+};
