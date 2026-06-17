@@ -618,3 +618,192 @@ export const markSyllabusNotificationRead = async (notifId) => {
   await updateDoc(doc(db, 'syllabusNotifications', notifId), { read: true });
 };
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ASSESSMENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+// assessments/{id}: type, examType, schoolClass, subject, title, description,
+//   dueDate, testDate, totalMarks, term, isMarked, studentMarks{}, postedBy, postedAt
+
+export const createAssessment = async (data) => {
+  const ref = await addDoc(collection(db, 'assessments'), {
+    ...data,
+    isMarked: false,
+    studentMarks: {},
+    postedBy: userId(),
+    postedAt: serverTimestamp(),
+  });
+  return ref.id;
+};
+
+export const getAssessmentsByClass = (schoolClass, callback) => {
+  const q = query(
+    collection(db, 'assessments'),
+    where('schoolClass', '==', schoolClass),
+    orderBy('postedAt', 'desc'),
+    limit(100)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const getAssessmentsByTeacher = (teacherId, callback) => {
+  const q = query(
+    collection(db, 'assessments'),
+    where('postedBy', '==', teacherId),
+    orderBy('postedAt', 'desc'),
+    limit(100)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const getAllAssessments = (callback) => {
+  const q = query(
+    collection(db, 'assessments'),
+    orderBy('postedAt', 'desc'),
+    limit(200)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const saveAssessmentMarks = async (assessmentId, studentMarks) => {
+  await updateDoc(doc(db, 'assessments', assessmentId), {
+    studentMarks,
+    isMarked: true,
+    markedAt: serverTimestamp(),
+    markedBy: userId(),
+  });
+  // Notify via assessmentNotifications
+  const snap = await getDocs(query(
+    collection(db, 'assessments'),
+    where('__name__', '==', assessmentId),
+    limit(1)
+  ));
+  if (!snap.empty) {
+    const a = snap.docs[0].data();
+    await addDoc(collection(db, 'assessmentNotifications'), {
+      assessmentId,
+      type: 'marks_entered',
+      schoolClass: a.schoolClass,
+      subject: a.subject,
+      assessmentTitle: a.title,
+      assessmentType: a.type,
+      message: `Marks have been entered for "${a.title}" (${a.subject}).`,
+      createdAt: serverTimestamp(),
+      createdBy: userId(),
+    });
+  }
+};
+
+export const deleteAssessment = async (assessmentId) => {
+  await deleteDoc(doc(db, 'assessments', assessmentId));
+};
+
+// Get notifications for a class's assessments
+export const getAssessmentNotifications = (schoolClass, callback) => {
+  const q = query(
+    collection(db, 'assessmentNotifications'),
+    where('schoolClass', '==', schoolClass),
+    orderBy('createdAt', 'desc'),
+    limit(30)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+// ─── Homework enquiries (parent asks teacher about a marked paper) ────────────
+export const sendHomeworkEnquiry = async ({ assessmentId, assessmentTitle, subject, schoolClass, studentName, message }) => {
+  await addDoc(collection(db, 'homeworkEnquiries'), {
+    assessmentId,
+    assessmentTitle,
+    subject,
+    schoolClass,
+    studentName,
+    message,
+    parentId: userId(),
+    reply: null,
+    repliedAt: null,
+    createdAt: serverTimestamp(),
+  });
+};
+
+export const getHomeworkEnquiries = (assessmentId, callback) => {
+  const q = query(
+    collection(db, 'homeworkEnquiries'),
+    where('assessmentId', '==', assessmentId),
+    orderBy('createdAt', 'desc')
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const replyToHomeworkEnquiry = async (enquiryId, reply) => {
+  await updateDoc(doc(db, 'homeworkEnquiries', enquiryId), {
+    reply,
+    repliedAt: serverTimestamp(),
+    repliedBy: userId(),
+  });
+};
+
+// ─── Report Card generation ───────────────────────────────────────────────────
+// Queries all finalyear exams for a class, ranks students, returns report card data
+export const generateReportCard = async (schoolClass, schoolYear) => {
+  const q = query(
+    collection(db, 'assessments'),
+    where('schoolClass', '==', schoolClass),
+    where('type', '==', 'exam'),
+    where('examType', '==', 'finalyear')
+  );
+  const snap = await getDocs(q);
+  const exams = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (!exams.length) return null;
+
+  // Collect all student IDs
+  const studentIds = new Set();
+  exams.forEach(e => Object.keys(e.studentMarks || {}).forEach(id => studentIds.add(id)));
+
+  const GRADE_POINTS = { A: 5, B: 4, C: 3, D: 2, E: 1, F: 0 };
+
+  // Build student data
+  const students = Array.from(studentIds).map(sid => {
+    const subjectGrades = exams.map(e => ({
+      subject: e.subject,
+      grade: e.studentMarks?.[sid]?.grade || 'F',
+      points: GRADE_POINTS[e.studentMarks?.[sid]?.grade || 'F'] || 0,
+      studentName: e.studentMarks?.[sid]?.studentName || '',
+    }));
+    const totalPoints = subjectGrades.reduce((s, sg) => s + sg.points, 0);
+    const studentName = subjectGrades.find(sg => sg.studentName)?.studentName || 'Unknown';
+    return { studentId: sid, studentName, subjectGrades, totalPoints };
+  });
+
+  // Rank by total points (descending)
+  students.sort((a, b) => b.totalPoints - a.totalPoints);
+  students.forEach((s, i) => { s.positionOverall = i + 1; });
+  const totalStudents = students.length;
+
+  // For secondary: also rank per subject
+  const isSecondary = exams.length > 1;
+  if (isSecondary) {
+    exams.forEach(exam => {
+      const subjectStudents = students
+        .map(s => ({ ...s, pts: GRADE_POINTS[s.subjectGrades.find(sg => sg.subject === exam.subject)?.grade || 'F'] || 0 }))
+        .sort((a, b) => b.pts - a.pts);
+      subjectStudents.forEach((ss, i) => {
+        const student = students.find(s => s.studentId === ss.studentId);
+        if (student) {
+          if (!student.subjectPositions) student.subjectPositions = {};
+          student.subjectPositions[exam.subject] = i + 1;
+        }
+      });
+    });
+  }
+
+  return { schoolClass, schoolYear, students, totalStudents, exams, generatedAt: new Date().toISOString() };
+};
