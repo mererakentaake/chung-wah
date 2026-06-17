@@ -50,6 +50,11 @@ import ManageTeachers        from './pages/admin/ManageTeachers';
 import CreateEditUser        from './pages/admin/CreateEditUser';
 import AdminFinancialReports from './pages/admin/AdminFinancialReports';
 
+// Syllabus
+import SyllabusManager from './pages/syllabus/SyllabusManager';
+import SyllabusEditor  from './pages/syllabus/SyllabusEditor';
+import SyllabusView    from './pages/syllabus/SyllabusView';
+
 function Loader() {
   return (
     <div className="min-h-screen mesh-bg flex items-center justify-center">
@@ -207,6 +212,20 @@ export default function App() {
       } />
       <Route path={ROUTES.ADMIN_FINANCIAL_REPORTS} element={
         <RequireAuth allow={[USER_TYPES.ADMIN]}><AdminFinancialReports /></RequireAuth>
+      } />
+
+      {/* Syllabus */}
+      <Route path={ROUTES.SYLLABUS} element={
+        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><SyllabusManager /></RequireAuth>
+      } />
+      <Route path={ROUTES.SYLLABUS_CREATE} element={
+        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><SyllabusEditor /></RequireAuth>
+      } />
+      <Route path={`${ROUTES.SYLLABUS_EDIT}/:id`} element={
+        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><SyllabusEditor /></RequireAuth>
+      } />
+      <Route path={ROUTES.SYLLABUS_VIEW} element={
+        <RequireAuth allow={[USER_TYPES.STUDENT, USER_TYPES.PARENT, USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><SyllabusView /></RequireAuth>
       } />
 
       {/* Fallback */}
