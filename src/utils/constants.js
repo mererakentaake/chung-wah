@@ -62,6 +62,12 @@ export const ROUTES = {
   SYLLABUS_CREATE: '/syllabus/create',
   SYLLABUS_EDIT:   '/syllabus/edit',
   SYLLABUS_VIEW:   '/syllabus/view',
+  // Assessment
+  ASSESSMENT:         '/assessment',
+  ASSESSMENT_CREATE:  '/assessment/create',
+  ASSESSMENT_MARKS:   '/assessment/marks',
+  ASSESSMENT_VIEW:    '/assessment/view',
+  REPORT_CARD:        '/report-card',
 };
 
 export const STRINGS = {
@@ -310,4 +316,31 @@ export const getSubjectsForClass = (schoolClass = '') => {
   if (SCHOOL_STRUCTURE.SECONDARY.classes.includes(schoolClass))
     return SUBJECTS_BY_SECTION.SECONDARY;
   return SUBJECTS_BY_SECTION.PRIMARY;
+};
+
+// ─── Assessment ───────────────────────────────────────────────────────────────
+export const ASSESSMENT_TYPES = {
+  HOMEWORK:   'homework',
+  UNIT_TEST:  'unitTest',
+  ASSIGNMENT: 'assignment',
+  EXAM:       'exam',
+};
+
+export const EXAM_TYPES = {
+  MID_SEMESTER: 'midsemester',
+  FINAL_YEAR:   'finalyear',
+};
+
+export const TERMS = ['Term 1', 'Term 2', 'Term 3', 'Term 4'];
+
+export const GRADE_OPTIONS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+// Grade to points conversion for report card ranking
+export const GRADE_POINTS = { A: 5, B: 4, C: 3, D: 2, E: 1, F: 0 };
+
+export const ASSESSMENT_CONFIG = {
+  homework:   { label: 'Homework',         color: '#6366f1', scoreType: 'marks'      },
+  unitTest:   { label: 'Unit Test',        color: '#f59e0b', scoreType: 'marks'      },
+  assignment: { label: 'Assignment',       color: '#22c55e', scoreType: 'percentage' },
+  exam:       { label: 'Exam',             color: '#a855f7', scoreType: 'grade'      },
 };
