@@ -68,6 +68,11 @@ export const ROUTES = {
   ASSESSMENT_MARKS:   '/assessment/marks',
   ASSESSMENT_VIEW:    '/assessment/view',
   REPORT_CARD:        '/report-card',
+  // Clubs
+  CLUBS:              '/clubs',
+  CLUBS_CREATE:       '/clubs/create',
+  CLUBS_DETAIL:       '/clubs/detail',
+  CLUBS_PENDING:      '/clubs/pending',
 };
 
 export const STRINGS = {
