@@ -73,6 +73,11 @@ export const ROUTES = {
   CLUBS_CREATE:       '/clubs/create',
   CLUBS_DETAIL:       '/clubs/detail',
   CLUBS_PENDING:      '/clubs/pending',
+  // Permission Forms
+  PERMISSIONS:        '/permissions',
+  PERMISSIONS_CREATE: '/permissions/create',
+  PERMISSIONS_DETAIL: '/permissions/detail',
+  PERMISSIONS_PARENT: '/permissions/respond',
 };
 
 export const STRINGS = {
