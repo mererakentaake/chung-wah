@@ -50,6 +50,12 @@ import ManageTeachers        from './pages/admin/ManageTeachers';
 import CreateEditUser        from './pages/admin/CreateEditUser';
 import AdminFinancialReports from './pages/admin/AdminFinancialReports';
 
+// Permission Forms
+import PermissionFormsList    from './pages/permissions/PermissionFormsList';
+import CreatePermissionForm   from './pages/permissions/CreatePermissionForm';
+import PermissionFormDetail   from './pages/permissions/PermissionFormDetail';
+import ParentPermissionForms  from './pages/permissions/ParentPermissionForms';
+
 // Clubs
 import ClubsList              from './pages/clubs/ClubsList';
 import ClubDetail             from './pages/clubs/ClubDetail';
@@ -225,6 +231,20 @@ export default function App() {
       } />
       <Route path={ROUTES.ADMIN_FINANCIAL_REPORTS} element={
         <RequireAuth allow={[USER_TYPES.ADMIN]}><AdminFinancialReports /></RequireAuth>
+      } />
+
+      {/* Permission Forms */}
+      <Route path={ROUTES.PERMISSIONS} element={
+        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><PermissionFormsList /></RequireAuth>
+      } />
+      <Route path={ROUTES.PERMISSIONS_CREATE} element={
+        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><CreatePermissionForm /></RequireAuth>
+      } />
+      <Route path={`${ROUTES.PERMISSIONS_DETAIL}/:id`} element={
+        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><PermissionFormDetail /></RequireAuth>
+      } />
+      <Route path={ROUTES.PERMISSIONS_PARENT} element={
+        <RequireAuth allow={[USER_TYPES.PARENT]}><ParentPermissionForms /></RequireAuth>
       } />
 
       {/* Clubs */}
