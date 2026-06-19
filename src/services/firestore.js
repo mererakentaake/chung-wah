@@ -807,3 +807,327 @@ export const generateReportCard = async (schoolClass, schoolYear) => {
 
   return { schoolClass, schoolYear, students, totalStudents, exams, generatedAt: new Date().toISOString() };
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CLUBS
+// ═══════════════════════════════════════════════════════════════════════════════
+// clubs/{id}: name, description, programme, teacherId, teacherName, isActive
+// clubMembers/{clubId_studentId}: clubId, studentId, studentName, gender,
+//   schoolClass, enrolledBy (parentId), enrolledAt, status
+// clubAnnouncements/{id}: clubId, clubName, title, content,
+//   status(pending|approved|rejected|school_wide), postedBy, approvedBy ...
+
+export const createClub = async (data) => {
+  const ref = await addDoc(collection(db, 'clubs'), {
+    ...data,
+    isActive: true,
+    memberCount: 0,
+    maleCount: 0,
+    femaleCount: 0,
+    createdBy: userId(),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+};
+
+export const updateClub = async (clubId, data) => {
+  await updateDoc(doc(db, 'clubs', clubId), {
+    ...data,
+    updatedAt: serverTimestamp(),
+    updatedBy: userId(),
+  });
+};
+
+export const deleteClub = async (clubId) => {
+  await deleteDoc(doc(db, 'clubs', clubId));
+};
+
+export const getClubs = (callback) => {
+  const q = query(collection(db, 'clubs'), orderBy('name', 'asc'));
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const getTeacherClubs = (teacherId, callback) => {
+  const q = query(
+    collection(db, 'clubs'),
+    where('teacherId', '==', teacherId)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+// Enroll a student in a club (called by parent)
+export const enrollInClub = async (clubId, studentId, { studentName, gender, schoolClass }) => {
+  const memberId = `${clubId}_${studentId}`;
+  const existing = await getDoc(doc(db, 'clubMembers', memberId));
+  if (existing.exists() && existing.data().status === 'active') return; // already enrolled
+
+  await setDoc(doc(db, 'clubMembers', memberId), {
+    clubId,
+    studentId,
+    studentName,
+    gender: gender || '',
+    schoolClass: schoolClass || '',
+    enrolledBy: userId(),
+    enrolledAt: serverTimestamp(),
+    status: 'active',
+  });
+
+  // Update club counts
+  const membersSnap = await getDocs(query(
+    collection(db, 'clubMembers'),
+    where('clubId', '==', clubId),
+    where('status', '==', 'active')
+  ));
+  const members = membersSnap.docs.map(d => d.data());
+  await updateDoc(doc(db, 'clubs', clubId), {
+    memberCount: members.length,
+    maleCount: members.filter(m => m.gender?.toLowerCase() === 'male').length,
+    femaleCount: members.filter(m => m.gender?.toLowerCase() === 'female').length,
+  });
+};
+
+export const unenrollFromClub = async (clubId, studentId) => {
+  const memberId = `${clubId}_${studentId}`;
+  await updateDoc(doc(db, 'clubMembers', memberId), {
+    status: 'inactive',
+    unenrolledAt: serverTimestamp(),
+    unenrolledBy: userId(),
+  });
+  // Recount
+  const membersSnap = await getDocs(query(
+    collection(db, 'clubMembers'),
+    where('clubId', '==', clubId),
+    where('status', '==', 'active')
+  ));
+  const members = membersSnap.docs.map(d => d.data());
+  await updateDoc(doc(db, 'clubs', clubId), {
+    memberCount: members.length,
+    maleCount: members.filter(m => m.gender?.toLowerCase() === 'male').length,
+    femaleCount: members.filter(m => m.gender?.toLowerCase() === 'female').length,
+  });
+};
+
+export const getClubMembers = (clubId, callback) => {
+  const q = query(
+    collection(db, 'clubMembers'),
+    where('clubId', '==', clubId),
+    where('status', '==', 'active')
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const getStudentClubIds = async (studentId) => {
+  const q = query(
+    collection(db, 'clubMembers'),
+    where('studentId', '==', studentId),
+    where('status', '==', 'active')
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => d.data().clubId);
+};
+
+export const isStudentEnrolledInClub = async (clubId, studentId) => {
+  const memberId = `${clubId}_${studentId}`;
+  const snap = await getDoc(doc(db, 'clubMembers', memberId));
+  return snap.exists() && snap.data().status === 'active';
+};
+
+// ─── Club Announcements ───────────────────────────────────────────────────────
+// Teacher posts → pending. Admin approves → approved or school_wide. Rejected → rejected.
+export const postClubAnnouncement = async ({ clubId, clubName, title, content, teacherName }) => {
+  await addDoc(collection(db, 'clubAnnouncements'), {
+    clubId,
+    clubName,
+    title,
+    content,
+    teacherName: teacherName || '',
+    status: 'pending',
+    postedBy: userId(),
+    approvedBy: null,
+    approvedAt: null,
+    rejectedBy: null,
+    rejectedAt: null,
+    isSchoolWide: false,
+    createdAt: serverTimestamp(),
+  });
+};
+
+export const getClubAnnouncements = (clubId, callback) => {
+  const q = query(
+    collection(db, 'clubAnnouncements'),
+    where('clubId', '==', clubId),
+    where('status', 'in', ['approved', 'school_wide']),
+    orderBy('createdAt', 'desc'),
+    limit(20)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const getPendingClubAnnouncements = (callback) => {
+  const q = query(
+    collection(db, 'clubAnnouncements'),
+    where('status', '==', 'pending'),
+    orderBy('createdAt', 'desc')
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const approveClubAnnouncement = async (announcementId, makeSchoolWide = false) => {
+  const newStatus = makeSchoolWide ? 'school_wide' : 'approved';
+  await updateDoc(doc(db, 'clubAnnouncements', announcementId), {
+    status: newStatus,
+    isSchoolWide: makeSchoolWide,
+    approvedBy: userId(),
+    approvedAt: serverTimestamp(),
+  });
+
+  // If school-wide, also add to main announcements
+  if (makeSchoolWide) {
+    const snap = await getDoc(doc(db, 'clubAnnouncements', announcementId));
+    if (snap.exists()) {
+      const d = snap.data();
+      await addDoc(collection(db, 'announcements'), {
+        title: `[${d.clubName}] ${d.title}`,
+        content: d.content,
+        type: 'club',
+        clubId: d.clubId,
+        clubName: d.clubName,
+        authorId: userId(),
+        authorName: 'Admin',
+        createdAt: serverTimestamp(),
+      });
+    }
+  }
+};
+
+export const rejectClubAnnouncement = async (announcementId) => {
+  await updateDoc(doc(db, 'clubAnnouncements', announcementId), {
+    status: 'rejected',
+    rejectedBy: userId(),
+    rejectedAt: serverTimestamp(),
+  });
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PERMISSION FORMS
+// ═══════════════════════════════════════════════════════════════════════════════
+// permissionForms/{id}: schoolClass, activityTitle, description,
+//   activityDate, startTime, endTime, responsibleTeachers[],
+//   rules, materials[], status(active|closed), createdBy, createdByName
+//
+// permissionResponses/{formId_studentId}: formId, studentId, studentName,
+//   schoolClass, parentId, response(approved|declined), notes, respondedAt
+
+export const createPermissionForm = async (data) => {
+  const ref = await addDoc(collection(db, 'permissionForms'), {
+    ...data,
+    status: 'active',
+    createdBy: userId(),
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+};
+
+export const updatePermissionForm = async (formId, data) => {
+  await updateDoc(doc(db, 'permissionForms', formId), {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const closePermissionForm = async (formId) => {
+  await updateDoc(doc(db, 'permissionForms', formId), {
+    status: 'closed',
+    closedAt: serverTimestamp(),
+    closedBy: userId(),
+  });
+};
+
+export const deletePermissionForm = async (formId) => {
+  await deleteDoc(doc(db, 'permissionForms', formId));
+};
+
+export const getPermissionFormsByTeacher = (teacherId, callback) => {
+  const q = query(
+    collection(db, 'permissionForms'),
+    where('createdBy', '==', teacherId),
+    orderBy('createdAt', 'desc'),
+    limit(50)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const getPermissionFormsByClass = (schoolClass, callback) => {
+  const q = query(
+    collection(db, 'permissionForms'),
+    where('schoolClass', '==', schoolClass),
+    orderBy('createdAt', 'desc'),
+    limit(50)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const getAllPermissionForms = (callback) => {
+  const q = query(
+    collection(db, 'permissionForms'),
+    orderBy('createdAt', 'desc'),
+    limit(100)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const submitPermissionResponse = async (formId, studentId, {
+  studentName, schoolClass, parentName, response, notes
+}) => {
+  const docId = `${formId}_${studentId}`;
+  await setDoc(doc(db, 'permissionResponses', docId), {
+    formId,
+    studentId,
+    studentName,
+    schoolClass,
+    parentId: userId(),
+    parentName: parentName || '',
+    response,
+    notes: notes || '',
+    respondedAt: serverTimestamp(),
+  }, { merge: true });
+};
+
+export const getPermissionResponses = (formId, callback) => {
+  const q = query(
+    collection(db, 'permissionResponses'),
+    where('formId', '==', formId),
+    orderBy('respondedAt', 'desc')
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const getParentPermissionResponses = (parentId, callback) => {
+  const q = query(
+    collection(db, 'permissionResponses'),
+    where('parentId', '==', parentId),
+    orderBy('respondedAt', 'desc')
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
