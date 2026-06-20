@@ -334,7 +334,7 @@ export default function CreateEditUser() {
   const [form, setForm] = useState({
     givenName: '', familyName: '', displayName: '',
     email: '', title: '', gender: '', schoolClass: '',
-    relationshipType: 'Parent',
+    relationshipType: 'Parent', teacherClass: '',
     enrollNo: '', subject: '', mobileNo: '', dob: '', bloodGroup: '',
   });
 
@@ -369,7 +369,7 @@ export default function CreateEditUser() {
         if (rec) {
           const gn = rec.givenName  || (rec.displayName || '').split(' ')[0] || '';
           const fn = rec.familyName || (rec.displayName || '').split(' ').slice(1).join(' ') || '';
-          setForm(f => ({ ...f, ...rec, givenName: gn, familyName: fn }));
+          setForm(f => ({ ...f, ...rec, givenName: gn, familyName: fn, teacherClass: rec.schoolClass || '' }));
           if (rec.children?.length) setChildren(rec.children);
         }
         if (isStudent) {
@@ -495,6 +495,7 @@ export default function CreateEditUser() {
           isATeacher: isTeacher,
           relationshipType: isParent ? form.relationshipType : undefined,
           subject: isTeacher ? form.subject : undefined,
+          schoolClass: isTeacher ? form.teacherClass : undefined,
           mobileNo: form.mobileNo.trim(),
           children: isParent ? validChildren : [],
         };
@@ -740,6 +741,28 @@ export default function CreateEditUser() {
                       placeholder="Select Subject"
                       error={errors.subject}
                     />
+                  </div>
+
+                  <div id="field-teacherClass">
+                    <label className="text-white/60 text-xs font-body font-medium mb-2 block">
+                      Primary Class (for class announcements)
+                    </label>
+                    <select
+                      className="field-dark w-full"
+                      value={form.teacherClass}
+                      onChange={e => setForm(f => ({ ...f, teacherClass: e.target.value }))}>
+                      <option value="">Select class (optional)...</option>
+                      {Object.values(SCHOOL_STRUCTURE).map(section => (
+                        <optgroup key={section.label} label={section.label}>
+                          {section.classes.map(cls => (
+                            <option key={cls} value={cls}>{cls}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                    <p className="text-white/30 text-[11px] font-body mt-1.5">
+                      Used to determine which class this teacher posts announcements and attendance for.
+                    </p>
                   </div>
 
                   <div id="field-mobileNo">

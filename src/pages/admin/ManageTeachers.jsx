@@ -1,9 +1,9 @@
 // src/pages/admin/ManageTeachers.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Pencil, Trash2, UserCheck, Users, ArrowLeft } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, UserCheck, Users, ArrowLeft, Megaphone } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { adminGetTeachersParents, adminDeleteTeacherParent } from '../../services/firestore';
+import { adminGetTeachersParents, adminDeleteTeacherParent, setTeacherAnnouncerStatus } from '../../services/firestore';
 import { ROUTES } from '../../utils/constants';
 
 export default function ManageTeachers() {
@@ -41,6 +41,17 @@ export default function ManageTeachers() {
       )
     );
   }, [search, people, tab]);
+
+  const handleToggleAnnouncer = async (person) => {
+    const next = !person.isAppointedAnnouncer;
+    try {
+      await setTeacherAnnouncerStatus(person.id, next);
+      setPeople(prev => prev.map(p => p.id === person.id ? { ...p, isAppointedAnnouncer: next } : p));
+      toast.success(next ? `${person.displayName} can now post school-wide announcements` : `School-wide posting removed for ${person.displayName}`);
+    } catch {
+      toast.error('Failed to update');
+    }
+  };
 
   const handleDelete = async (person) => {
     if (!window.confirm(`Remove ${person.displayName || person.email}?`)) return;
@@ -135,9 +146,11 @@ export default function ManageTeachers() {
                 key={person.id}
                 person={person}
                 color={color}
+                isTeacherTab={isTeacherTab}
                 deleting={deletingId === person.id}
                 onEdit={() => navigate(`${ROUTES.ADMIN_EDIT_USER}?type=${type}&id=${person.id}`)}
                 onDelete={() => handleDelete(person)}
+                onToggleAnnouncer={() => handleToggleAnnouncer(person)}
               />
             ))}
           </div>
@@ -147,7 +160,7 @@ export default function ManageTeachers() {
   );
 }
 
-function PersonCard({ person, color, deleting, onEdit, onDelete }) {
+function PersonCard({ person, color, isTeacherTab, deleting, onEdit, onDelete, onToggleAnnouncer }) {
   const name = person.displayName || person.name || '—';
   const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
@@ -162,6 +175,17 @@ function PersonCard({ person, color, deleting, onEdit, onDelete }) {
         <p className="text-white/40 text-xs font-body truncate">{person.email}</p>
         {person.subject && (
           <p className="text-xs font-body mt-0.5" style={{ color: `${color}cc` }}>{person.subject}</p>
+        )}
+        {isTeacherTab && (
+          <button onClick={onToggleAnnouncer}
+            className={`flex items-center gap-1.5 mt-1.5 px-2 py-1 rounded-lg text-[10px] font-body font-semibold transition-all ${
+              person.isAppointedAnnouncer
+                ? 'bg-blue-500/15 text-blue-300'
+                : 'bg-white/5 text-white/30'
+            }`}>
+            <Megaphone size={11} />
+            {person.isAppointedAnnouncer ? 'Can post school-wide' : 'Class-only announcements'}
+          </button>
         )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
