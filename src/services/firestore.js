@@ -67,11 +67,42 @@ export const getParentGuardianLinks = (parentDocId, callback) => {
 };
 
 // ─── Announcements ───────────────────────────────────────────────────────────
-export const getAnnouncements = (standard, division, callback) => {
+// announcements/{id}: title, body, imageUrl, scope('class'|'school'),
+//   schoolClass (only if scope==='class'), type, authorId, authorName, createdAt
+
+// Get announcements visible to a given class (school-wide + that class's own posts)
+export const getAnnouncementsForClass = (schoolClass, callback) => {
   const q = query(
     collection(db, 'announcements'),
     orderBy('createdAt', 'desc'),
-    limit(30)
+    limit(50)
+  );
+  return onSnapshot(q, snap => {
+    const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const visible = all.filter(a => a.scope === 'school' || a.schoolClass === schoolClass);
+    callback(visible);
+  });
+};
+
+// Get all announcements a teacher has posted
+export const getAnnouncementsByTeacher = (teacherId, callback) => {
+  const q = query(
+    collection(db, 'announcements'),
+    where('authorId', '==', teacherId),
+    orderBy('createdAt', 'desc'),
+    limit(50)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+// Get every announcement (admin view)
+export const getAllAnnouncements = (callback) => {
+  const q = query(
+    collection(db, 'announcements'),
+    orderBy('createdAt', 'desc'),
+    limit(100)
   );
   return onSnapshot(q, snap =>
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
@@ -83,6 +114,17 @@ export const createAnnouncement = async (data) => {
     ...data,
     authorId: userId(),
     createdAt: serverTimestamp(),
+  });
+};
+
+export const deleteAnnouncement = async (announcementId) => {
+  await deleteDoc(doc(db, 'announcements', announcementId));
+};
+
+// ─── Appointed Announcer toggle (admin grants school-wide posting rights) ─────
+export const setTeacherAnnouncerStatus = async (teacherDocId, isAppointed) => {
+  await updateDoc(doc(db, 'Login', 'Parent-Teacher', 'users', teacherDocId), {
+    isAppointedAnnouncer: isAppointed,
   });
 };
 
