@@ -1,18 +1,27 @@
 // src/components/layout/TopBar.jsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
+import { ArrowLeft, LogOut } from 'lucide-react';
 import { logoutUser } from '../../services/auth';
 import toast from 'react-hot-toast';
 import { ROUTES } from '../../utils/constants';
 
 /**
  * Global TopBar — standard layout for all authenticated screens.
- * Left:   School crest
+ *
+ * Left:   Back button (if showBack) OR school crest
  * Center: Screen title (+ optional subtitle)
- * Right:  Sign out button
+ * Right:  Custom action buttons (children) OR sign-out button as a fallback
+ *
+ * Props:
+ *   title       — string, required
+ *   subtitle    — optional string shown under the title
+ *   showBack    — boolean, shows a back chevron instead of the crest
+ *   onBack      — optional custom back handler; defaults to navigate(-1)
+ *   children    — optional right-side action button(s). If provided, the
+ *                 default sign-out icon is not rendered.
  */
-export default function TopBar({ title, subtitle }) {
+export default function TopBar({ title, subtitle, showBack = false, onBack, children }) {
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -24,16 +33,32 @@ export default function TopBar({ title, subtitle }) {
     }
   };
 
+  const handleBack = () => {
+    if (onBack) { onBack(); return; }
+    navigate(-1);
+  };
+
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
       <div className="relative flex items-center h-14 px-4">
-        {/* Left — school crest */}
+        {/* Left — back button or school crest */}
         <div className="flex items-center shrink-0 w-10">
-          <img
-            src="/school-crest.png"
-            alt="Chung Wah"
-            className="w-8 h-8 object-contain"
-          />
+          {showBack ? (
+            <button
+              onClick={handleBack}
+              className="w-9 h-9 -ml-1 rounded-xl flex items-center justify-center
+                         hover:bg-gray-100 active:scale-95 transition-all"
+              aria-label="Go back"
+            >
+              <ArrowLeft size={19} className="text-gray-600" />
+            </button>
+          ) : (
+            <img
+              src="/school-crest.png"
+              alt="Chung Wah"
+              className="w-8 h-8 object-contain"
+            />
+          )}
         </div>
 
         {/* Center — title */}
@@ -46,16 +71,18 @@ export default function TopBar({ title, subtitle }) {
           )}
         </div>
 
-        {/* Right — sign out */}
-        <div className="ml-auto flex items-center shrink-0">
-          <button
-            onClick={handleSignOut}
-            className="w-9 h-9 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center
-                       hover:bg-red-50 hover:border-red-200 hover:text-red-500 text-gray-500 active:scale-95 transition-all"
-            aria-label="Sign out"
-          >
-            <LogOut size={16} />
-          </button>
+        {/* Right — custom action buttons, else sign-out */}
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          {children ? children : (
+            <button
+              onClick={handleSignOut}
+              className="w-9 h-9 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center
+                         hover:bg-red-50 hover:border-red-200 hover:text-red-500 text-gray-500 active:scale-95 transition-all"
+              aria-label="Sign out"
+            >
+              <LogOut size={16} />
+            </button>
+          )}
         </div>
       </div>
     </header>
