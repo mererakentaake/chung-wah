@@ -57,6 +57,11 @@ export const ROUTES = {
   ADMIN_CREATE_USER: '/admin/create-user',
   ADMIN_EDIT_USER: '/admin/edit-user',
   ADMIN_FINANCIAL_REPORTS: '/admin/financial-reports',
+  // Syllabus
+  SYLLABUS:        '/syllabus',
+  SYLLABUS_CREATE: '/syllabus/create',
+  SYLLABUS_EDIT:   '/syllabus/edit',
+  SYLLABUS_VIEW:   '/syllabus/view',
 };
 
 export const STRINGS = {
@@ -262,3 +267,47 @@ export const getClassSection = (schoolClass = '') => {
 export const isSecondaryClass = (schoolClass = '') =>
   SCHOOL_STRUCTURE.SECONDARY.classes.includes(schoolClass);
 
+// ─── Subjects by section ──────────────────────────────────────────────────────
+export const SUBJECTS_BY_SECTION = {
+  EARLY_CHILDHOOD: [
+    'Language & Literacy',
+    'Numeracy',
+    'Creative Arts',
+    'Physical Development',
+    'Social & Emotional Learning',
+    'Environmental Exploration',
+  ],
+  PRIMARY: [
+    'English',
+    'Mathematics',
+    'Science',
+    'Social Studies',
+    'Christian Education',
+    'Physical Education',
+    'Health Education',
+    'ICT / Computer Studies',
+  ],
+  SECONDARY: [
+    'English',
+    'Mathematics',
+    'Science',
+    'Social Studies',
+    'Business Studies',
+    'Agriculture',
+    'Industrial Arts',
+    'Home Economics',
+    'Christian Education',
+    'Physical Education',
+    'ICT / Computer Studies',
+    'Health Education',
+  ],
+};
+
+// Helper — get subjects for a given schoolClass
+export const getSubjectsForClass = (schoolClass = '') => {
+  if (SCHOOL_STRUCTURE.EARLY_CHILDHOOD.classes.includes(schoolClass))
+    return SUBJECTS_BY_SECTION.EARLY_CHILDHOOD;
+  if (SCHOOL_STRUCTURE.SECONDARY.classes.includes(schoolClass))
+    return SUBJECTS_BY_SECTION.SECONDARY;
+  return SUBJECTS_BY_SECTION.PRIMARY;
+};
