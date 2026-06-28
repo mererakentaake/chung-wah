@@ -122,15 +122,13 @@ export const registerUser = async ({ email, password, userType }) => {
     const pre = checkResult.userData;
     const profileData = { email: email.toLowerCase().trim() };
     if (pre.displayName) profileData.displayName = pre.displayName;
+    if (pre.standard)    profileData.standard    = pre.standard;
+    if (pre.division)    profileData.division    = pre.division;
     if (pre.enrollNo)    profileData.enrollNo    = pre.enrollNo;
     if (pre.mobileNo)    profileData.mobileNo    = pre.mobileNo;
     if (pre.dob)         profileData.dob         = pre.dob;
     if (pre.bloodGroup)  profileData.bloodGroup  = pre.bloodGroup;
-    if (pre.gender)      profileData.gender      = pre.gender;
-    if (pre.emergencyContactName)  profileData.emergencyContactName  = pre.emergencyContactName;
-    if (pre.emergencyContactPhone) profileData.emergencyContactPhone = pre.emergencyContactPhone;
     if (pre.subject)     profileData.subject     = pre.subject;
-    if (pre.schoolClass) profileData.schoolClass = pre.schoolClass;
     await setDoc(doc(db, 'users', docId), profileData, { merge: true });
   } catch (_) {}
   return credential.user;
