@@ -1018,3 +1018,116 @@ export const rejectClubAnnouncement = async (announcementId) => {
     rejectedAt: serverTimestamp(),
   });
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PERMISSION FORMS
+// ═══════════════════════════════════════════════════════════════════════════════
+// permissionForms/{id}: schoolClass, activityTitle, description,
+//   activityDate, startTime, endTime, responsibleTeachers[],
+//   rules, materials[], status(active|closed), createdBy, createdByName
+//
+// permissionResponses/{formId_studentId}: formId, studentId, studentName,
+//   schoolClass, parentId, response(approved|declined), notes, respondedAt
+
+export const createPermissionForm = async (data) => {
+  const ref = await addDoc(collection(db, 'permissionForms'), {
+    ...data,
+    status: 'active',
+    createdBy: userId(),
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+};
+
+export const updatePermissionForm = async (formId, data) => {
+  await updateDoc(doc(db, 'permissionForms', formId), {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const closePermissionForm = async (formId) => {
+  await updateDoc(doc(db, 'permissionForms', formId), {
+    status: 'closed',
+    closedAt: serverTimestamp(),
+    closedBy: userId(),
+  });
+};
+
+export const deletePermissionForm = async (formId) => {
+  await deleteDoc(doc(db, 'permissionForms', formId));
+};
+
+export const getPermissionFormsByTeacher = (teacherId, callback) => {
+  const q = query(
+    collection(db, 'permissionForms'),
+    where('createdBy', '==', teacherId),
+    orderBy('createdAt', 'desc'),
+    limit(50)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const getPermissionFormsByClass = (schoolClass, callback) => {
+  const q = query(
+    collection(db, 'permissionForms'),
+    where('schoolClass', '==', schoolClass),
+    orderBy('createdAt', 'desc'),
+    limit(50)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const getAllPermissionForms = (callback) => {
+  const q = query(
+    collection(db, 'permissionForms'),
+    orderBy('createdAt', 'desc'),
+    limit(100)
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const submitPermissionResponse = async (formId, studentId, {
+  studentName, schoolClass, parentName, response, notes
+}) => {
+  const docId = `${formId}_${studentId}`;
+  await setDoc(doc(db, 'permissionResponses', docId), {
+    formId,
+    studentId,
+    studentName,
+    schoolClass,
+    parentId: userId(),
+    parentName: parentName || '',
+    response,
+    notes: notes || '',
+    respondedAt: serverTimestamp(),
+  }, { merge: true });
+};
+
+export const getPermissionResponses = (formId, callback) => {
+  const q = query(
+    collection(db, 'permissionResponses'),
+    where('formId', '==', formId),
+    orderBy('respondedAt', 'desc')
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
+
+export const getParentPermissionResponses = (parentId, callback) => {
+  const q = query(
+    collection(db, 'permissionResponses'),
+    where('parentId', '==', parentId),
+    orderBy('respondedAt', 'desc')
+  );
+  return onSnapshot(q, snap =>
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+};
