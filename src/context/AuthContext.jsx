@@ -1,6 +1,7 @@
 // src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { onAuthChange } from '../services/auth';
+import { onAuthChange, auth as firebaseAuth } from '../services/auth';
+import { initPushNotifications, removeFcmToken } from '../services/notifications';
 import { USER_TYPES } from '../utils/constants';
 
 const AuthContext = createContext(null);
@@ -18,6 +19,14 @@ export function AuthProvider({ children }) {
     setUserId(uid);
     localStorage.setItem('userId', uid || '');
     setTimeout(() => { authSetDirectly.current = false; }, 3000);
+    // Init push after direct login — auth UID comes via firebase user
+    // We defer slightly so firebase.auth().currentUser is populated
+    setTimeout(() => {
+      const firebaseUid = firebaseAuth.currentUser?.uid;
+      if (firebaseUid) {
+        initPushNotifications(firebaseUid, uid, type).catch(() => {});
+      }
+    }, 1500);
   };
 
   useEffect(() => {
@@ -29,6 +38,7 @@ export function AuthProvider({ children }) {
         setUserId('');
         localStorage.removeItem('userId');
         setLoading(false);
+        removeFcmToken(firebaseUser?.uid || localStorage.getItem('lastAuthUid') || '').catch(() => {});
         return;
       }
 
@@ -53,6 +63,8 @@ export function AuthProvider({ children }) {
             setUserId(uid || firebaseUser.uid);
             localStorage.setItem('userId', uid || firebaseUser.uid);
             setLoading(false);
+            // Init push notifications in the background — non-blocking
+            initPushNotifications(firebaseUser.uid, uid || firebaseUser.uid, type).catch(() => {});
             return;
           }
         }
