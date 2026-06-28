@@ -334,9 +334,8 @@ export default function CreateEditUser() {
   const [form, setForm] = useState({
     givenName: '', familyName: '', displayName: '',
     email: '', title: '', gender: '', schoolClass: '',
-    relationshipType: 'Parent', teacherClass: '',
+    relationshipType: 'Parent',
     enrollNo: '', subject: '', mobileNo: '', dob: '', bloodGroup: '',
-    emergencyContactName: '', emergencyContactPhone: '',
   });
 
   const [children, setChildren] = useState([{ studentId: '', studentName: '', studentClass: '' }]);
@@ -370,7 +369,7 @@ export default function CreateEditUser() {
         if (rec) {
           const gn = rec.givenName  || (rec.displayName || '').split(' ')[0] || '';
           const fn = rec.familyName || (rec.displayName || '').split(' ').slice(1).join(' ') || '';
-          setForm(f => ({ ...f, ...rec, givenName: gn, familyName: fn, teacherClass: rec.schoolClass || '' }));
+          setForm(f => ({ ...f, ...rec, givenName: gn, familyName: fn }));
           if (rec.children?.length) setChildren(rec.children);
         }
         if (isStudent) {
@@ -471,8 +470,6 @@ export default function CreateEditUser() {
           mobileNo: form.mobileNo.trim(),
           dob: form.dob,
           bloodGroup: form.bloodGroup,
-          emergencyContactName: form.emergencyContactName.trim(),
-          emergencyContactPhone: form.emergencyContactPhone.trim(),
         };
         isEdit ? await adminUpdateStudent(editId, data) : await adminCreateStudent(data);
         toast.success(isEdit ? 'Student updated!' : 'Student added!');
@@ -498,7 +495,6 @@ export default function CreateEditUser() {
           isATeacher: isTeacher,
           relationshipType: isParent ? form.relationshipType : undefined,
           subject: isTeacher ? form.subject : undefined,
-          schoolClass: isTeacher ? form.teacherClass : undefined,
           mobileNo: form.mobileNo.trim(),
           children: isParent ? validChildren : [],
         };
@@ -665,16 +661,6 @@ export default function CreateEditUser() {
                 <Field label="Phone No." value={form.mobileNo} onChange={set('mobileNo')}
                   placeholder="+677 xx xxxxx" type="tel" error={errors.mobileNo} />
               </div>
-
-              {/* Emergency Contact */}
-              <div id="field-emergencyContactName">
-                <Field label="Emergency Contact Name" value={form.emergencyContactName} onChange={set('emergencyContactName')}
-                  placeholder="e.g. John Doe" />
-              </div>
-              <div id="field-emergencyContactPhone">
-                <Field label="Emergency Contact Phone" value={form.emergencyContactPhone} onChange={set('emergencyContactPhone')}
-                  placeholder="+677 xx xxxxx" type="tel" />
-              </div>
             </>
           )}
 
@@ -754,28 +740,6 @@ export default function CreateEditUser() {
                       placeholder="Select Subject"
                       error={errors.subject}
                     />
-                  </div>
-
-                  <div id="field-teacherClass">
-                    <label className="text-white/60 text-xs font-body font-medium mb-2 block">
-                      Primary Class (for class announcements)
-                    </label>
-                    <select
-                      className="field-dark w-full"
-                      value={form.teacherClass}
-                      onChange={e => setForm(f => ({ ...f, teacherClass: e.target.value }))}>
-                      <option value="">Select class (optional)...</option>
-                      {Object.values(SCHOOL_STRUCTURE).map(section => (
-                        <optgroup key={section.label} label={section.label}>
-                          {section.classes.map(cls => (
-                            <option key={cls} value={cls}>{cls}</option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                    <p className="text-white/30 text-[11px] font-body mt-1.5">
-                      Used to determine which class this teacher posts announcements and attendance for.
-                    </p>
                   </div>
 
                   <div id="field-mobileNo">
