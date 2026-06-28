@@ -50,6 +50,13 @@ import ManageTeachers        from './pages/admin/ManageTeachers';
 import CreateEditUser        from './pages/admin/CreateEditUser';
 import AdminFinancialReports from './pages/admin/AdminFinancialReports';
 
+// Assessment
+import AssessmentManager  from './pages/assessment/AssessmentManager';
+import CreateAssessment   from './pages/assessment/CreateAssessment';
+import EnterMarks         from './pages/assessment/EnterMarks';
+import AssessmentView     from './pages/assessment/AssessmentView';
+import ReportCard         from './pages/assessment/ReportCard';
+
 // Syllabus
 import SyllabusManager from './pages/syllabus/SyllabusManager';
 import SyllabusEditor  from './pages/syllabus/SyllabusEditor';
@@ -212,6 +219,23 @@ export default function App() {
       } />
       <Route path={ROUTES.ADMIN_FINANCIAL_REPORTS} element={
         <RequireAuth allow={[USER_TYPES.ADMIN]}><AdminFinancialReports /></RequireAuth>
+      } />
+
+      {/* Assessment */}
+      <Route path={ROUTES.ASSESSMENT} element={
+        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><AssessmentManager /></RequireAuth>
+      } />
+      <Route path={ROUTES.ASSESSMENT_CREATE} element={
+        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><CreateAssessment /></RequireAuth>
+      } />
+      <Route path={`${ROUTES.ASSESSMENT_MARKS}/:id`} element={
+        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><EnterMarks /></RequireAuth>
+      } />
+      <Route path={ROUTES.ASSESSMENT_VIEW} element={
+        <RequireAuth allow={[USER_TYPES.STUDENT, USER_TYPES.PARENT, USER_TYPES.ADMIN]}><AssessmentView /></RequireAuth>
+      } />
+      <Route path={ROUTES.REPORT_CARD} element={
+        <RequireAuth allow={[USER_TYPES.STUDENT, USER_TYPES.PARENT, USER_TYPES.ADMIN]}><ReportCard /></RequireAuth>
       } />
 
       {/* Syllabus */}
