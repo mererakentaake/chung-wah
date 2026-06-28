@@ -50,25 +50,6 @@ import ManageTeachers        from './pages/admin/ManageTeachers';
 import CreateEditUser        from './pages/admin/CreateEditUser';
 import AdminFinancialReports from './pages/admin/AdminFinancialReports';
 
-// Permission Forms
-import PermissionFormsList    from './pages/permissions/PermissionFormsList';
-import CreatePermissionForm   from './pages/permissions/CreatePermissionForm';
-import PermissionFormDetail   from './pages/permissions/PermissionFormDetail';
-import ParentPermissionForms  from './pages/permissions/ParentPermissionForms';
-
-// Clubs
-import ClubsList              from './pages/clubs/ClubsList';
-import ClubDetail             from './pages/clubs/ClubDetail';
-import CreateEditClub         from './pages/clubs/CreateEditClub';
-import PendingAnnouncements   from './pages/clubs/PendingAnnouncements';
-
-// Assessment
-import AssessmentManager  from './pages/assessment/AssessmentManager';
-import CreateAssessment   from './pages/assessment/CreateAssessment';
-import EnterMarks         from './pages/assessment/EnterMarks';
-import AssessmentView     from './pages/assessment/AssessmentView';
-import ReportCard         from './pages/assessment/ReportCard';
-
 // Syllabus
 import SyllabusManager from './pages/syllabus/SyllabusManager';
 import SyllabusEditor  from './pages/syllabus/SyllabusEditor';
@@ -231,51 +212,6 @@ export default function App() {
       } />
       <Route path={ROUTES.ADMIN_FINANCIAL_REPORTS} element={
         <RequireAuth allow={[USER_TYPES.ADMIN]}><AdminFinancialReports /></RequireAuth>
-      } />
-
-      {/* Permission Forms */}
-      <Route path={ROUTES.PERMISSIONS} element={
-        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><PermissionFormsList /></RequireAuth>
-      } />
-      <Route path={ROUTES.PERMISSIONS_CREATE} element={
-        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><CreatePermissionForm /></RequireAuth>
-      } />
-      <Route path={`${ROUTES.PERMISSIONS_DETAIL}/:id`} element={
-        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><PermissionFormDetail /></RequireAuth>
-      } />
-      <Route path={ROUTES.PERMISSIONS_PARENT} element={
-        <RequireAuth allow={[USER_TYPES.PARENT]}><ParentPermissionForms /></RequireAuth>
-      } />
-
-      {/* Clubs */}
-      <Route path={ROUTES.CLUBS} element={
-        <RequireAuth allow={[USER_TYPES.STUDENT, USER_TYPES.TEACHER, USER_TYPES.PARENT, USER_TYPES.ADMIN]}><ClubsList /></RequireAuth>
-      } />
-      <Route path={`${ROUTES.CLUBS_DETAIL}/:id`} element={
-        <RequireAuth allow={[USER_TYPES.STUDENT, USER_TYPES.TEACHER, USER_TYPES.PARENT, USER_TYPES.ADMIN]}><ClubDetail /></RequireAuth>
-      } />
-      <Route path={ROUTES.CLUBS_CREATE} element={
-        <RequireAuth allow={[USER_TYPES.ADMIN]}><CreateEditClub /></RequireAuth>
-      } />
-      <Route path={ROUTES.CLUBS_PENDING} element={
-        <RequireAuth allow={[USER_TYPES.ADMIN]}><PendingAnnouncements /></RequireAuth>
-      } />
-
-      {/* Assessment */}
-      <Route path={ROUTES.ASSESSMENT} element={
-        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><AssessmentManager /></RequireAuth>
-      } />
-      <Route path={ROUTES.ASSESSMENT_CREATE} element={
-        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><CreateAssessment /></RequireAuth>
-      } />
-      <Route path={`${ROUTES.ASSESSMENT_MARKS}/:id`} element={
-        <RequireAuth allow={[USER_TYPES.ADMIN, USER_TYPES.TEACHER]}><EnterMarks /></RequireAuth>
-      } />
-      <Route path={ROUTES.ASSESSMENT_VIEW} element={
-        <RequireAuth allow={[USER_TYPES.STUDENT, USER_TYPES.PARENT, USER_TYPES.ADMIN]}><AssessmentView /></RequireAuth>
-      } />
-      <Route path={ROUTES.REPORT_CARD} element={
-        <RequireAuth allow={[USER_TYPES.STUDENT, USER_TYPES.PARENT, USER_TYPES.ADMIN]}><ReportCard /></RequireAuth>
       } />
 
       {/* Syllabus */}
