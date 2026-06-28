@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, GraduationCap, UserPlus, BarChart3, Settings, LogOut,
-  ShieldCheck, ChevronRight, FileText, ClipboardList, DollarSign, Calculator, BookMarked, Award, Star, Bell
+  ShieldCheck, ChevronRight, FileText, ClipboardList, DollarSign, Calculator, BookMarked, Award, Star, Bell, FileCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useBackGuard from '../../hooks/useBackGuard';
@@ -136,6 +136,8 @@ export default function AdminDashboard() {
 
         {/* Reports */}
         <p className="text-gray-400 text-xs font-body font-semibold uppercase tracking-wider mb-3">Curriculum</p>
+        <NavRow icon={FileCheck} label="Permission Forms"
+          sub="View all activity permission forms" color="#7c3aed" route={ROUTES.PERMISSIONS} />
         <NavRow icon={Star} label="School Clubs"
           sub="Create and manage extra-curricular clubs" color="#10b981" route={ROUTES.CLUBS} />
         <NavRow icon={BookMarked} label="Curriculum Syllabuses"
