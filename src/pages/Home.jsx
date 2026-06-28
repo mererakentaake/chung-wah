@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Users, Megaphone, Calendar, FileText, Bus, BookOpen,
+  Users, Megaphone, Calendar, FileText, Bus, BookOpen, BookMarked,
   Baby, CreditCard, Clock, FlaskConical, DollarSign,
   Heart, Stethoscope, Syringe, Tag, Plus, GraduationCap, ClipboardList,
   CheckCircle, XCircle, ChevronRight, BarChart3, TrendingUp, Receipt, Calculator
@@ -120,6 +120,7 @@ function TeacherDashboard({ user, userType }) {
         <DashboardCardHalf icon={Calculator}    label="Add Accounts" color="#10b981" route={`${ROUTES.ADMIN_CREATE_USER}?type=accounts`} />
       </div>
 
+      <DashboardCardFull icon={BookMarked} label="Curriculum Syllabuses" color="#6366f1" route={ROUTES.SYLLABUS} description="Manage class syllabuses and topic progress" />
       <DashboardCardFull icon={Megaphone} label="Announcements" color="#f59e0b" route={ROUTES.ANNOUNCEMENTS} description="School posts and updates" />
       <div className="flex gap-3">
         <DashboardCardHalf icon={Calendar}      label="Holidays"    color="#64748b" route={ROUTES.HOLIDAYS} />
@@ -144,6 +145,7 @@ function StudentDashboard({ user }) {
       </div>
 
       <DashboardCardFull icon={ClipboardList} label="My Attendance" color="#6366f1" route={ROUTES.ATTENDANCE_RECORDS} description="View your daily attendance records" />
+      <DashboardCardFull icon={BookMarked} label="My Curriculum" color="#6366f1" route={ROUTES.SYLLABUS_VIEW} description="View your class syllabus and topic progress" />
       <DashboardCardFull icon={Megaphone} label="Announcements" color="#f59e0b" route={ROUTES.ANNOUNCEMENTS} description="Latest school posts" />
       <div className="flex gap-3">
         <DashboardCardHalf icon={Clock}        label="Time Table"   color="#6366f1" route={ROUTES.TIMETABLE} />
@@ -176,6 +178,7 @@ function ParentDashboard({ user }) {
       <DashboardCardFull icon={Users} label="My Children" color="#E84545" route={ROUTES.CHILDREN} description="View linked children & their progress" />
       <DashboardCardFull icon={ClipboardList} label="Attendance Records" color="#6366f1" route={ROUTES.ATTENDANCE_RECORDS} description="See your children's attendance" />
       <DashboardCardFull icon={DollarSign} label="Fee Status" color="#10b981" route={ROUTES.FEES} description="Track fee payments for your children" />
+      <DashboardCardFull icon={BookMarked} label="Curriculum" color="#6366f1" route={ROUTES.SYLLABUS_VIEW} description="View your child's class syllabus" />
       <DashboardCardFull icon={Megaphone} label="Announcements" color="#f59e0b" route={ROUTES.ANNOUNCEMENTS} description="Latest school updates" />
       <div className="flex gap-3">
         <DashboardCardHalf icon={Clock}        label="Time Table" color="#6366f1" route={ROUTES.TIMETABLE} />
