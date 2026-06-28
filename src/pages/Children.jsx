@@ -1,11 +1,9 @@
 // src/pages/Children.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Clock, CheckCircle, XCircle, ClipboardList, DollarSign, Smartphone, SmartphoneOff } from 'lucide-react';
+import { Users, Clock, CheckCircle, XCircle, ClipboardList, DollarSign, Edit2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getParentGuardianLinks, adminGetStudents, getStudentFees, getStudentAttendance, toggleStudentAppAccess } from '../services/firestore';
-import { PARENT_PERMISSION_CLASSES } from '../utils/constants';
-import toast from 'react-hot-toast';
+import { getParentGuardianLinks, adminGetStudents, getStudentFees, getStudentAttendance } from '../services/firestore';
 import TopBar from '../components/layout/TopBar';
 import BottomNav from '../components/layout/BottomNav';
 import { USER_TYPES, ROUTES } from '../utils/constants';
@@ -72,49 +70,6 @@ function FeeMiniStatus({ studentId }) {
   );
 }
 
-
-function AppAccessToggle({ studentDocId, studentData, studentClass }) {
-  const isGrade6 = PARENT_PERMISSION_CLASSES.includes(studentClass);
-  if (!isGrade6) return null;
-
-  const enabled = studentData?.allowAppAccess || false;
-  const [loading, setLoading] = React.useState(false);
-
-  const toggle = async () => {
-    setLoading(true);
-    try {
-      await toggleStudentAppAccess(studentDocId, !enabled);
-      toast.success(enabled ? 'App access disabled' : 'App access enabled');
-    } catch {
-      toast.error('Failed to update. Try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-      <div className="flex items-center gap-2">
-        {enabled
-          ? <Smartphone size={14} className="text-emerald-500" />
-          : <SmartphoneOff size={14} className="text-gray-400" />}
-        <div>
-          <p className="text-gray-700 text-xs font-display font-semibold">App Access</p>
-          <p className="text-gray-400 text-[10px] font-body">
-            {enabled ? 'Child can log in independently' : 'Child cannot log in yet'}
-          </p>
-        </div>
-      </div>
-      <button onClick={toggle} disabled={loading}
-        className={"relative w-11 h-6 rounded-full transition-colors duration-200 " + (enabled ? 'bg-emerald-500' : 'bg-gray-200')}
-        style={{ flexShrink: 0 }}>
-        <span className={"absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 " +
-          (enabled ? 'translate-x-5' : 'translate-x-0')} />
-      </button>
-    </div>
-  );
-}
-
 function ChildCard({ link, studentData }) {
   const navigate = useNavigate();
   const isPending   = link.status === 'pending';
@@ -135,11 +90,11 @@ function ChildCard({ link, studentData }) {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-gray-800 font-display font-semibold">{name}</p>
-          {studentData && studentData.standard ? (
-            <p className="text-gray-400 text-sm font-body">Std {studentData.standard} – {studentData.division}</p>
-          ) : link.studentClass ? (
-            <p className="text-gray-400 text-sm font-body">{link.studentClass}</p>
-          ) : null}
+          {(studentData?.schoolClass || link.studentClass) && (
+            <p className="text-gray-400 text-sm font-body">
+              {studentData?.schoolClass || link.studentClass}
+            </p>
+          )}
 
           {isPending && (
             <div className="flex items-center gap-1.5 mt-1.5">
@@ -165,7 +120,6 @@ function ChildCard({ link, studentData }) {
       {isConfirmed && studentData && (
         <>
           <FeeMiniStatus studentId={link.studentDocId} />
-          <AppAccessToggle studentDocId={link.studentDocId} studentData={studentData} studentClass={studentData?.schoolClass || ''} />
           <AttendanceMiniBar studentId={link.studentDocId} />
           <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
             <button
@@ -177,6 +131,11 @@ function ChildCard({ link, studentData }) {
               onClick={() => navigate(ROUTES.FEES + "?studentId=" + link.studentDocId)}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-display font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors">
               <DollarSign size={13} /> Fees
+            </button>
+            <button
+              onClick={() => navigate(`${ROUTES.CHILD_PROFILE_EDIT}/${link.studentDocId}`)}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-display font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 transition-colors">
+              <Edit2 size={13} /> Edit
             </button>
           </div>
         </>
