@@ -23,7 +23,7 @@
     "date-fns": "^3.1.0",
     "react-hot-toast": "^2.4.1",
     "clsx": "^2.1.0",
-    "qrcode.react": "^3.1.0"
+    "@capacitor/push-notifications": "^6.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
@@ -46,9 +46,18 @@
     "directories": {
       "output": "dist-electron"
     },
-    "files": ["dist/**/*", "electron/**/*"],
-    "linux": { "target": "AppImage" },
-    "mac": { "target": "dmg" },
-    "win": { "target": "nsis" }
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "linux": {
+      "target": "AppImage"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "win": {
+      "target": "nsis"
+    }
   }
 }
