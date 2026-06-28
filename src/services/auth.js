@@ -129,6 +129,7 @@ export const registerUser = async ({ email, password, userType }) => {
     if (pre.dob)         profileData.dob         = pre.dob;
     if (pre.bloodGroup)  profileData.bloodGroup  = pre.bloodGroup;
     if (pre.subject)     profileData.subject     = pre.subject;
+    if (pre.schoolClass) profileData.schoolClass = pre.schoolClass;
     await setDoc(doc(db, 'users', docId), profileData, { merge: true });
   } catch (_) {}
   return credential.user;
