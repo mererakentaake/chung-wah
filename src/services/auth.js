@@ -10,7 +10,8 @@ import {
   doc, getDoc, getDocs, collection, query, where, setDoc, limit
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { USER_TYPES, NO_STUDENT_LOGIN_CLASSES, PARENT_PERMISSION_CLASSES } from '../utils/constants';
+export { auth }; // re-export for AuthContext to use
+import { USER_TYPES } from '../utils/constants';
 
 // ─── Session ──────────────────────────────────────────────────────────────────
 export const saveSession = async (uid, { userType, userId }) => {
@@ -63,20 +64,6 @@ export const checkSchoolAndUser = async ({ email, userType }) => {
 export const loginUser = async ({ email, password, userType }) => {
   const checkResult = await checkSchoolAndUser({ email, userType });
   if (!checkResult.success) throw new Error(checkResult.error);
-
-  // ── Student login gate based on class ──────────────────────────────────────
-  if (userType === USER_TYPES.STUDENT) {
-    const sc = checkResult.userData.schoolClass || '';
-    if (NO_STUDENT_LOGIN_CLASSES.includes(sc)) {
-      throw new Error('TOO_YOUNG');
-    }
-    if (PARENT_PERMISSION_CLASSES.includes(sc)) {
-      if (!checkResult.userData.allowAppAccess) {
-        throw new Error('NEEDS_PARENT_PERMISSION');
-      }
-    }
-  }
-
   let credential;
   try {
     credential = await signInWithEmailAndPassword(auth, email, password);
@@ -99,17 +86,6 @@ export const loginUser = async ({ email, password, userType }) => {
 export const registerUser = async ({ email, password, userType }) => {
   const checkResult = await checkSchoolAndUser({ email, userType });
   if (!checkResult.success) throw new Error('USER_NOT_PREREGISTERED');
-
-  // ── Student login gate ─────────────────────────────────────────────────────
-  if (userType === USER_TYPES.STUDENT) {
-    const sc = checkResult.userData.schoolClass || '';
-    if (NO_STUDENT_LOGIN_CLASSES.includes(sc)) {
-      throw new Error('TOO_YOUNG');
-    }
-    if (PARENT_PERMISSION_CLASSES.includes(sc) && !checkResult.userData.allowAppAccess) {
-      throw new Error('NEEDS_PARENT_PERMISSION');
-    }
-  }
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   let resolvedType = userType;
   if (userType === USER_TYPES.TEACHER) {
@@ -122,15 +98,13 @@ export const registerUser = async ({ email, password, userType }) => {
     const pre = checkResult.userData;
     const profileData = { email: email.toLowerCase().trim() };
     if (pre.displayName) profileData.displayName = pre.displayName;
+    if (pre.standard)    profileData.standard    = pre.standard;
+    if (pre.division)    profileData.division    = pre.division;
     if (pre.enrollNo)    profileData.enrollNo    = pre.enrollNo;
     if (pre.mobileNo)    profileData.mobileNo    = pre.mobileNo;
     if (pre.dob)         profileData.dob         = pre.dob;
     if (pre.bloodGroup)  profileData.bloodGroup  = pre.bloodGroup;
-    if (pre.gender)      profileData.gender      = pre.gender;
-    if (pre.emergencyContactName)  profileData.emergencyContactName  = pre.emergencyContactName;
-    if (pre.emergencyContactPhone) profileData.emergencyContactPhone = pre.emergencyContactPhone;
     if (pre.subject)     profileData.subject     = pre.subject;
-    if (pre.schoolClass) profileData.schoolClass = pre.schoolClass;
     await setDoc(doc(db, 'users', docId), profileData, { merge: true });
   } catch (_) {}
   return credential.user;
