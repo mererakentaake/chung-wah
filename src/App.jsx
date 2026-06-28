@@ -50,6 +50,12 @@ import ManageTeachers        from './pages/admin/ManageTeachers';
 import CreateEditUser        from './pages/admin/CreateEditUser';
 import AdminFinancialReports from './pages/admin/AdminFinancialReports';
 
+// Clubs
+import ClubsList              from './pages/clubs/ClubsList';
+import ClubDetail             from './pages/clubs/ClubDetail';
+import CreateEditClub         from './pages/clubs/CreateEditClub';
+import PendingAnnouncements   from './pages/clubs/PendingAnnouncements';
+
 // Assessment
 import AssessmentManager  from './pages/assessment/AssessmentManager';
 import CreateAssessment   from './pages/assessment/CreateAssessment';
@@ -219,6 +225,20 @@ export default function App() {
       } />
       <Route path={ROUTES.ADMIN_FINANCIAL_REPORTS} element={
         <RequireAuth allow={[USER_TYPES.ADMIN]}><AdminFinancialReports /></RequireAuth>
+      } />
+
+      {/* Clubs */}
+      <Route path={ROUTES.CLUBS} element={
+        <RequireAuth allow={[USER_TYPES.STUDENT, USER_TYPES.TEACHER, USER_TYPES.PARENT, USER_TYPES.ADMIN]}><ClubsList /></RequireAuth>
+      } />
+      <Route path={`${ROUTES.CLUBS_DETAIL}/:id`} element={
+        <RequireAuth allow={[USER_TYPES.STUDENT, USER_TYPES.TEACHER, USER_TYPES.PARENT, USER_TYPES.ADMIN]}><ClubDetail /></RequireAuth>
+      } />
+      <Route path={ROUTES.CLUBS_CREATE} element={
+        <RequireAuth allow={[USER_TYPES.ADMIN]}><CreateEditClub /></RequireAuth>
+      } />
+      <Route path={ROUTES.CLUBS_PENDING} element={
+        <RequireAuth allow={[USER_TYPES.ADMIN]}><PendingAnnouncements /></RequireAuth>
       } />
 
       {/* Assessment */}
