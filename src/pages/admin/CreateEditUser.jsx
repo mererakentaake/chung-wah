@@ -336,6 +336,7 @@ export default function CreateEditUser() {
     email: '', title: '', gender: '', schoolClass: '',
     relationshipType: 'Parent', teacherClass: '',
     enrollNo: '', subject: '', mobileNo: '', dob: '', bloodGroup: '',
+    emergencyContactName: '', emergencyContactPhone: '',
   });
 
   const [children, setChildren] = useState([{ studentId: '', studentName: '', studentClass: '' }]);
@@ -470,6 +471,8 @@ export default function CreateEditUser() {
           mobileNo: form.mobileNo.trim(),
           dob: form.dob,
           bloodGroup: form.bloodGroup,
+          emergencyContactName: form.emergencyContactName.trim(),
+          emergencyContactPhone: form.emergencyContactPhone.trim(),
         };
         isEdit ? await adminUpdateStudent(editId, data) : await adminCreateStudent(data);
         toast.success(isEdit ? 'Student updated!' : 'Student added!');
@@ -661,6 +664,16 @@ export default function CreateEditUser() {
               <div id="field-mobileNo">
                 <Field label="Phone No." value={form.mobileNo} onChange={set('mobileNo')}
                   placeholder="+677 xx xxxxx" type="tel" error={errors.mobileNo} />
+              </div>
+
+              {/* Emergency Contact */}
+              <div id="field-emergencyContactName">
+                <Field label="Emergency Contact Name" value={form.emergencyContactName} onChange={set('emergencyContactName')}
+                  placeholder="e.g. John Doe" />
+              </div>
+              <div id="field-emergencyContactPhone">
+                <Field label="Emergency Contact Phone" value={form.emergencyContactPhone} onChange={set('emergencyContactPhone')}
+                  placeholder="+677 xx xxxxx" type="tel" />
               </div>
             </>
           )}
