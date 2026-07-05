@@ -10,8 +10,12 @@ import {
   doc, getDoc, getDocs, collection, query, where, setDoc, limit
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
-export { auth }; // re-export for AuthContext to use
-import { USER_TYPES } from '../utils/constants';
+export { auth }; // re-exported for AuthContext
+import {
+  USER_TYPES,
+  NO_STUDENT_LOGIN_CLASSES,
+  PARENT_PERMISSION_CLASSES,
+} from '../utils/constants';
 
 // ─── Session ──────────────────────────────────────────────────────────────────
 export const saveSession = async (uid, { userType, userId }) => {
@@ -36,20 +40,16 @@ export const getSession = async (uid) => {
     const userId = fields.userId?.stringValue;
     if (!type || type === USER_TYPES.UNKNOWN) return null;
     return { userType: type, userId: userId || uid };
-  } catch (_) {
-    return null;
-  }
+  } catch (_) { return null; }
 };
 
 export const clearSession = async (uid) => {
   try {
-    await setDoc(doc(db, 'sessions', uid), {
-      userType: USER_TYPES.UNKNOWN, userId: '',
-    });
+    await setDoc(doc(db, 'sessions', uid), { userType: USER_TYPES.UNKNOWN, userId: '' });
   } catch (_) {}
 };
 
-// ─── Student / Teacher / Parent login ────────────────────────────────────────
+// ─── Student / Teacher / Parent ───────────────────────────────────────────────
 export const checkSchoolAndUser = async ({ email, userType }) => {
   const loginType = userType === USER_TYPES.STUDENT ? 'Student' : 'Parent-Teacher';
   const q = query(
@@ -64,19 +64,26 @@ export const checkSchoolAndUser = async ({ email, userType }) => {
 export const loginUser = async ({ email, password, userType }) => {
   const checkResult = await checkSchoolAndUser({ email, userType });
   if (!checkResult.success) throw new Error(checkResult.error);
+
+  // ── Phase 1: Student login gate ───────────────────────────────────────────
+  if (userType === USER_TYPES.STUDENT) {
+    const sc = checkResult.userData.schoolClass || '';
+    if (NO_STUDENT_LOGIN_CLASSES.includes(sc)) throw new Error('TOO_YOUNG');
+    if (PARENT_PERMISSION_CLASSES.includes(sc) && !checkResult.userData.allowAppAccess)
+      throw new Error('NEEDS_PARENT_PERMISSION');
+  }
+
   let credential;
   try {
     credential = await signInWithEmailAndPassword(auth, email, password);
   } catch (err) {
-    if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+    if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential')
       throw new Error('NEEDS_REGISTRATION');
-    }
     throw err;
   }
   let resolvedType = userType;
-  if (userType === USER_TYPES.TEACHER) {
+  if (userType === USER_TYPES.TEACHER)
     resolvedType = checkResult.userData.isATeacher ? USER_TYPES.TEACHER : USER_TYPES.PARENT;
-  }
   const docId = checkResult.userData.id || checkResult.docId;
   await saveSession(credential.user.uid, { userType: resolvedType, userId: docId });
   localStorage.setItem('userId', docId);
@@ -86,51 +93,55 @@ export const loginUser = async ({ email, password, userType }) => {
 export const registerUser = async ({ email, password, userType }) => {
   const checkResult = await checkSchoolAndUser({ email, userType });
   if (!checkResult.success) throw new Error('USER_NOT_PREREGISTERED');
+
+  // ── Phase 1: Student login gate on registration ───────────────────────────
+  if (userType === USER_TYPES.STUDENT) {
+    const sc = checkResult.userData.schoolClass || '';
+    if (NO_STUDENT_LOGIN_CLASSES.includes(sc)) throw new Error('TOO_YOUNG');
+    if (PARENT_PERMISSION_CLASSES.includes(sc) && !checkResult.userData.allowAppAccess)
+      throw new Error('NEEDS_PARENT_PERMISSION');
+  }
+
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   let resolvedType = userType;
-  if (userType === USER_TYPES.TEACHER) {
+  if (userType === USER_TYPES.TEACHER)
     resolvedType = checkResult.userData.isATeacher ? USER_TYPES.TEACHER : USER_TYPES.PARENT;
-  }
   const docId = checkResult.userData.id || checkResult.docId;
   await saveSession(credential.user.uid, { userType: resolvedType, userId: docId });
   localStorage.setItem('userId', docId);
+
+  // Copy pre-registration profile to users/{docId}
   try {
     const pre = checkResult.userData;
-    const profileData = { email: email.toLowerCase().trim() };
-    if (pre.displayName) profileData.displayName = pre.displayName;
-    if (pre.standard)    profileData.standard    = pre.standard;
-    if (pre.division)    profileData.division    = pre.division;
-    if (pre.enrollNo)    profileData.enrollNo    = pre.enrollNo;
-    if (pre.mobileNo)    profileData.mobileNo    = pre.mobileNo;
-    if (pre.dob)         profileData.dob         = pre.dob;
-    if (pre.bloodGroup)  profileData.bloodGroup  = pre.bloodGroup;
-    if (pre.subject)     profileData.subject     = pre.subject;
-    await setDoc(doc(db, 'users', docId), profileData, { merge: true });
+    const p = { email: email.toLowerCase().trim() };
+    if (pre.displayName)            p.displayName            = pre.displayName;
+    if (pre.enrollNo)               p.enrollNo               = pre.enrollNo;
+    if (pre.mobileNo)               p.mobileNo               = pre.mobileNo;
+    if (pre.dob)                    p.dob                    = pre.dob;
+    if (pre.bloodGroup)             p.bloodGroup             = pre.bloodGroup;
+    if (pre.gender)                 p.gender                 = pre.gender;
+    if (pre.schoolClass)            p.schoolClass            = pre.schoolClass;
+    if (pre.emergencyContactName)   p.emergencyContactName   = pre.emergencyContactName;
+    if (pre.emergencyContactPhone)  p.emergencyContactPhone  = pre.emergencyContactPhone;
+    if (pre.subject)                p.subject                = pre.subject;
+    await setDoc(doc(db, 'users', docId), p, { merge: true });
   } catch (_) {}
   return credential.user;
 };
 
-// ─── Admin login — uses Firestore SDK directly (no REST API) ─────────────────
+// ─── Admin login ──────────────────────────────────────────────────────────────
 export const loginAdmin = async ({ email, password }) => {
-  // Sign in first so we have an authenticated context for Firestore reads
   let credential;
-  try {
-    credential = await signInWithEmailAndPassword(auth, email, password);
-  } catch (err) {
-    throw err;
-  }
+  try { credential = await signInWithEmailAndPassword(auth, email, password); }
+  catch (err) { throw err; }
   const uid = credential.user.uid;
-
   try {
-    // 1. Check by Firebase Auth UID (document ID = UID)
     const byUid = await getDoc(doc(db, 'admins', uid));
     if (byUid.exists()) {
       await saveSession(uid, { userType: USER_TYPES.ADMIN, userId: uid });
       localStorage.setItem('userId', uid);
       return { user: credential.user };
     }
-
-    // 2. Check by email field (document ID = auto-generated)
     const byEmail = await getDocs(query(
       collection(db, 'admins'),
       where('email', '==', email.toLowerCase().trim()),
@@ -141,26 +152,20 @@ export const loginAdmin = async ({ email, password }) => {
       localStorage.setItem('userId', uid);
       return { user: credential.user };
     }
-  } catch (firestoreErr) {
-    // Firestore read failed — likely security rules. Sign out and report.
+  } catch (_) {
     await signOut(auth);
     throw new Error('FIRESTORE_RULES_BLOCKED');
   }
-
   await signOut(auth);
   throw new Error('NOT_AN_ADMIN');
 };
 
-// ─── Accounts login — uses Firestore SDK directly ────────────────────────────
+// ─── Accounts login ───────────────────────────────────────────────────────────
 export const loginAccounts = async ({ email, password }) => {
   let credential;
-  try {
-    credential = await signInWithEmailAndPassword(auth, email, password);
-  } catch (err) {
-    throw err;
-  }
+  try { credential = await signInWithEmailAndPassword(auth, email, password); }
+  catch (err) { throw err; }
   const uid = credential.user.uid;
-
   try {
     const byUid = await getDoc(doc(db, 'accountsUsers', uid));
     if (byUid.exists()) {
@@ -168,7 +173,6 @@ export const loginAccounts = async ({ email, password }) => {
       localStorage.setItem('userId', uid);
       return { user: credential.user };
     }
-
     const byEmail = await getDocs(query(
       collection(db, 'accountsUsers'),
       where('email', '==', email.toLowerCase().trim()),
@@ -179,33 +183,28 @@ export const loginAccounts = async ({ email, password }) => {
       localStorage.setItem('userId', uid);
       return { user: credential.user };
     }
-  } catch (firestoreErr) {
+  } catch (_) {
     await signOut(auth);
     throw new Error('FIRESTORE_RULES_BLOCKED');
   }
-
   await signOut(auth);
   throw new Error('NOT_AN_ACCOUNTANT');
 };
 
-
-// ─── Accounts register (first-time activation) ───────────────────────────────
+// ─── Accounts self-registration ───────────────────────────────────────────────
 export const registerAccounts = async ({ email, password }) => {
-  // Check pre-registration
   const snap = await getDocs(query(
     collection(db, 'accountsUsers'),
     where('email', '==', email.toLowerCase().trim()),
     limit(1)
   ));
   if (snap.empty) throw new Error('USER_NOT_PREREGISTERED');
-
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   const uid = credential.user.uid;
   await saveSession(uid, { userType: USER_TYPES.ACCOUNTS, userId: uid });
   localStorage.setItem('userId', uid);
   return credential.user;
 };
-
 
 export const logoutUser = async () => {
   const uid = auth.currentUser?.uid;
