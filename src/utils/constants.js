@@ -17,9 +17,6 @@ export const USER_COLORS = {
   ACCOUNTS: '#10b981',
 };
 
-// Hardcoded school code — avoids exposing it in the login UI
-export const SCHOOL_CODE = import.meta.env.VITE_SCHOOL_CODE || 'CHUNGWAH';
-
 export const ROUTES = {
   WELCOME: '/',
   LOGIN: '/login',
@@ -59,6 +56,27 @@ export const ROUTES = {
   ADMIN_FINANCIAL_REPORTS: '/admin/financial-reports',
   // Parent editing child profile
   CHILD_PROFILE_EDIT: '/children/edit',
+  // Syllabus
+  SYLLABUS:        '/syllabus',
+  SYLLABUS_CREATE: '/syllabus/create',
+  SYLLABUS_EDIT:   '/syllabus/edit',
+  SYLLABUS_VIEW:   '/syllabus/view',
+  // Assessment
+  ASSESSMENT:         '/assessment',
+  ASSESSMENT_CREATE:  '/assessment/create',
+  ASSESSMENT_MARKS:   '/assessment/marks',
+  ASSESSMENT_VIEW:    '/assessment/view',
+  REPORT_CARD:        '/report-card',
+  // Clubs
+  CLUBS:              '/clubs',
+  CLUBS_CREATE:       '/clubs/create',
+  CLUBS_DETAIL:       '/clubs/detail',
+  CLUBS_PENDING:      '/clubs/pending',
+  // Permission Forms
+  PERMISSIONS:        '/permissions',
+  PERMISSIONS_CREATE: '/permissions/create',
+  PERMISSIONS_DETAIL: '/permissions/detail',
+  PERMISSIONS_PARENT: '/permissions/respond',
 };
 
 export const STRINGS = {
@@ -206,3 +224,98 @@ export const EXPENSE_CATEGORIES = [
   'Transport',
   'Other',
 ];
+
+// ─── School Structure ─────────────────────────────────────────────────────────
+export const SCHOOL_STRUCTURE = {
+  EARLY_CHILDHOOD: {
+    label: 'Early Childhood',
+    classes: ['Prep A', 'Prep B', 'Prep C'],
+  },
+  PRIMARY: {
+    label: 'Primary',
+    classes: [
+      'Grade 1A', 'Grade 1B', 'Grade 2A', 'Grade 2B',
+      'Grade 3A', 'Grade 3B', 'Grade 4A', 'Grade 4B',
+      'Grade 5A', 'Grade 5B', 'Grade 6A', 'Grade 6B',
+    ],
+  },
+  SECONDARY: {
+    label: 'Secondary',
+    classes: ['Form 1', 'Form 2', 'Form 3'],
+  },
+};
+
+export const ALL_CLASSES = [
+  ...SCHOOL_STRUCTURE.EARLY_CHILDHOOD.classes,
+  ...SCHOOL_STRUCTURE.PRIMARY.classes,
+  ...SCHOOL_STRUCTURE.SECONDARY.classes,
+];
+
+export const NO_STUDENT_LOGIN_CLASSES = [
+  'Prep A', 'Prep B', 'Prep C',
+  'Grade 1A', 'Grade 1B', 'Grade 2A', 'Grade 2B',
+  'Grade 3A', 'Grade 3B', 'Grade 4A', 'Grade 4B',
+  'Grade 5A', 'Grade 5B',
+];
+
+export const PARENT_PERMISSION_CLASSES = ['Grade 6A', 'Grade 6B'];
+export const OPEN_LOGIN_CLASSES        = ['Form 1', 'Form 2', 'Form 3'];
+
+export const getClassSection = (schoolClass = '') => {
+  if (SCHOOL_STRUCTURE.EARLY_CHILDHOOD.classes.includes(schoolClass)) return 'Early Childhood';
+  if (SCHOOL_STRUCTURE.PRIMARY.classes.includes(schoolClass))          return 'Primary';
+  if (SCHOOL_STRUCTURE.SECONDARY.classes.includes(schoolClass))        return 'Secondary';
+  return '';
+};
+
+export const isSecondaryClass = (schoolClass = '') =>
+  SCHOOL_STRUCTURE.SECONDARY.classes.includes(schoolClass);
+
+// ─── Subjects by section ──────────────────────────────────────────────────────
+export const SUBJECTS_BY_SECTION = {
+  EARLY_CHILDHOOD: [
+    'Language & Literacy', 'Numeracy', 'Creative Arts',
+    'Physical Development', 'Social & Emotional Learning', 'Environmental Exploration',
+  ],
+  PRIMARY: [
+    'English', 'Mathematics', 'Science', 'Social Studies',
+    'Christian Education', 'Physical Education', 'Health Education', 'ICT / Computer Studies',
+  ],
+  SECONDARY: [
+    'English', 'Mathematics', 'Science', 'Social Studies', 'Business Studies',
+    'Agriculture', 'Industrial Arts', 'Home Economics', 'Christian Education',
+    'Physical Education', 'ICT / Computer Studies', 'Health Education',
+  ],
+};
+
+export const getSubjectsForClass = (schoolClass = '') => {
+  if (SCHOOL_STRUCTURE.EARLY_CHILDHOOD.classes.includes(schoolClass))
+    return SUBJECTS_BY_SECTION.EARLY_CHILDHOOD;
+  if (SCHOOL_STRUCTURE.SECONDARY.classes.includes(schoolClass))
+    return SUBJECTS_BY_SECTION.SECONDARY;
+  return SUBJECTS_BY_SECTION.PRIMARY;
+};
+
+// ─── Assessment ───────────────────────────────────────────────────────────────
+export const ASSESSMENT_TYPES = {
+  HOMEWORK:   'homework',
+  UNIT_TEST:  'unitTest',
+  ASSIGNMENT: 'assignment',
+  EXAM:       'exam',
+};
+
+export const EXAM_TYPES = {
+  MID_SEMESTER: 'midsemester',
+  FINAL_YEAR:   'finalyear',
+};
+
+export const TERMS        = ['Term 1', 'Term 2', 'Term 3', 'Term 4'];
+export const GRADE_OPTIONS = ['A', 'B', 'C', 'D', 'E', 'F'];
+export const GRADE_POINTS  = { A: 5, B: 4, C: 3, D: 2, E: 1, F: 0 };
+
+export const ASSESSMENT_CONFIG = {
+  homework:   { label: 'Homework',   color: '#6366f1', scoreType: 'marks'      },
+  unitTest:   { label: 'Unit Test',  color: '#f59e0b', scoreType: 'marks'      },
+  assignment: { label: 'Assignment', color: '#22c55e', scoreType: 'percentage' },
+  exam:       { label: 'Exam',       color: '#a855f7', scoreType: 'grade'      },
+};
