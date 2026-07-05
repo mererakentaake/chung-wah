@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useBackGuard from '../../hooks/useBackGuard';
+import ExitConfirmModal from '../../components/ui/ExitConfirmModal';
 import { useAuth } from '../../context/AuthContext';
 import { logoutUser } from '../../services/auth';
 import { getAllFees, getExpenses } from '../../services/firestore';
@@ -49,7 +50,8 @@ function NavCard({ icon: Icon, color, title, subtitle, route }) {
 
 export default function AccountsDashboard() {
   const { user, schoolCode, userType } = useAuth();
-  useBackGuard(); // Prevent device back going to Login
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  useBackGuard({ onBack: () => setShowExitConfirm(true) }); // Dashboard root: back opens exit confirmation
   const navigate = useNavigate();
   const [fees, setFees] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -134,6 +136,10 @@ export default function AccountsDashboard() {
       </div>
 
       <BottomNav userType={USER_TYPES.ACCOUNTS} />
+
+      {showExitConfirm && (
+        <ExitConfirmModal onCancel={() => setShowExitConfirm(false)} />
+      )}
     </div>
   );
 }
