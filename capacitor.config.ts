@@ -4,7 +4,6 @@ const config: CapacitorConfig = {
   appId: 'com.meresimi.chungwah',
   appName: 'Chung Wah',
   webDir: 'dist',
-  bundledWebRuntime: false,
   android: {
     buildOptions: {
       keystorePath: 'release-key.jks',
