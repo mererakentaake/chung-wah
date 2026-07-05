@@ -41,8 +41,17 @@ export default function BottomNav({ userType }) {
       { label: 'Expenses',  icon: BarChart3,       route: ROUTES.ACCOUNTS_EXPENSES,  color: '#6366f1' },
       { label: 'Reports',   icon: ClipboardList,   route: ROUTES.ACCOUNTS_REPORTS,   color: '#a855f7' },
     ];
+  } else if (userType === USER_TYPES.ADMIN) {
+    // Admin's dashboard lives at /admin (its own layout), NOT /home.
+    // Screens like Settings still render this shared BottomNav, so the
+    // Dashboard tab must point back to the admin dashboard route or it
+    // lands on /home, which renders a blank body for admins.
+    tabs = [
+      { label: 'Dashboard', icon: LayoutDashboard, route: ROUTES.ADMIN_DASHBOARD, color: '#a855f7' },
+      { label: 'Settings',  icon: Settings,         route: ROUTES.SETTINGS,       color: '#F9C61F' },
+    ];
   } else {
-    // Fallback / admin (admin has its own layout)
+    // Fallback (unauthenticated / unknown edge case)
     tabs = [
       { label: 'Dashboard', icon: LayoutDashboard, route: ROUTES.HOME,     color: '#F4A334' },
       { label: 'Settings',  icon: Settings,         route: ROUTES.SETTINGS, color: '#F9C61F' },
@@ -58,6 +67,7 @@ export default function BottomNav({ userType }) {
               (route === ROUTES.CHAT && location.pathname.startsWith('/chat')) ||
               (route === ROUTES.TAKE_ATTENDANCE && location.pathname.startsWith('/attendance')) ||
               (route === ROUTES.ATTENDANCE_RECORDS && location.pathname.startsWith('/attendance'));
+            // (admin dashboard tab highlighting handled by exact path match above)
             return (
               <button key={route} onClick={() => navigate(route)}
                 className={`flex flex-col items-center gap-1 flex-1 py-1.5 px-2 rounded-xl transition-all duration-200 active:scale-95
