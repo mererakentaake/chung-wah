@@ -5,6 +5,13 @@
 // fails to render properly. Tapping it opens a full-screen panel listing
 // every captured console.log / console.info / console.warn / console.error
 // call plus any uncaught JS errors, newest first.
+//
+// Positioning: bottom is pinned to env(safe-area-inset-bottom) — i.e. its
+// bottom edge sits flush against the top of the system nav bar (gesture bar
+// or 3-button nav), never on top of it. The button has a fixed 44px height
+// (DEBUG_BUTTON_HEIGHT below) so index.css can reserve exactly enough extra
+// scroll space on every page to keep it from covering the last on-screen
+// button — see the ".pb-28 / .pb-24" override in index.css.
 
 import React, { useEffect, useState } from 'react';
 import { X, Trash2, Copy } from 'lucide-react';
@@ -34,14 +41,17 @@ export default function DebugLogButton() {
         onClick={() => setOpen(true)}
         style={{
           position: 'fixed',
-          bottom: '90px',
+          bottom: 'env(safe-area-inset-bottom, 0px)',
           right: '16px',
           zIndex: 9999,
+          height: '44px',
+          display: 'flex',
+          alignItems: 'center',
           backgroundColor: '#0A0F2C',
           color: '#ffffff',
           border: '1px solid rgba(255,255,255,0.15)',
           borderRadius: '9999px',
-          padding: '10px 18px',
+          padding: '0 18px',
           fontSize: '13px',
           fontWeight: 600,
           boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
