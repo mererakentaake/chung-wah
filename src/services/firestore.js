@@ -66,26 +66,6 @@ export const getParentGuardianLinks = (parentDocId, callback) => {
   );
 };
 
-// ─── Announcements ───────────────────────────────────────────────────────────
-export const getAnnouncements = (standard, division, callback) => {
-  const q = query(
-    collection(db, 'announcements'),
-    orderBy('createdAt', 'desc'),
-    limit(30)
-  );
-  return onSnapshot(q, snap =>
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-  );
-};
-
-export const createAnnouncement = async (data) => {
-  await addDoc(collection(db, 'announcements'), {
-    ...data,
-    authorId: userId(),
-    createdAt: serverTimestamp(),
-  });
-};
-
 // ─── Assignments ──────────────────────────────────────────────────────────────
 export const getAssignments = (callback) => {
   const q = query(collection(db, 'assignments'), orderBy('createdAt', 'desc'));
