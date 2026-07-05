@@ -16,6 +16,7 @@ import { DashboardCardFull, DashboardCardHalf, DashboardCardBanner } from '../co
 import { getProfile, getGuardianRequests, respondToGuardianRequest } from '../services/firestore';
 import toast from 'react-hot-toast';
 import useBackGuard from '../hooks/useBackGuard';
+import ExitConfirmModal from '../components/ui/ExitConfirmModal';
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -210,7 +211,8 @@ function ParentDashboard({ user }) {
 /* ─── Main Home ──────────────────────────────────────────────────────────── */
 export default function Home() {
   const { user, userType, userId } = useAuth();
-  useBackGuard(); // Prevent device back going to Login
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  useBackGuard({ onBack: () => setShowExitConfirm(true) }); // Dashboard root: back opens exit confirmation
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -272,6 +274,10 @@ export default function Home() {
           requests={pendingRequests}
           onDone={() => setShowGuardianModal(false)}
         />
+      )}
+
+      {showExitConfirm && (
+        <ExitConfirmModal onCancel={() => setShowExitConfirm(false)} />
       )}
     </div>
   );
