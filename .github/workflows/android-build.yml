@@ -61,6 +61,44 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      # ── Native Firebase config for @capacitor/push-notifications ──────────
+      # @capacitor/push-notifications initializes the native FirebaseMessaging
+      # SDK on Android, which requires its own google-services.json (this is
+      # separate from the web VITE_FIREBASE_* keys used by the Firebase JS SDK).
+      # Without it, FirebaseApp.initializeApp() throws IllegalStateException
+      # ("Default FirebaseApp is not initialized") the moment the app calls
+      # PushNotifications.requestPermissions()/register() - i.e. right after
+      # login, before the user even answers the permission prompt - and force
+      # closes the whole app. Add a repo secret named
+      # GOOGLE_SERVICES_JSON_BASE64 (base64 of the file from
+      # Firebase Console > Project Settings > Your apps > Android app)
+      # for this step to take effect.
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+            echo "WARNING: GOOGLE_SERVICES_JSON_BASE64 secret not set - native push notifications WILL crash the app on launch/login. Add this secret to fix."
+          else
+            echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
+            echo "google-services.json written"
+          fi
+
+      - name: Add Google Services Gradle plugin
+        run: |
+          ROOT_GRADLE="android/build.gradle"
+          APP_GRADLE="android/app/build.gradle"
+          if [ -f "android/app/google-services.json" ]; then
+            if ! grep -q "com.google.gms:google-services" "$ROOT_GRADLE"; then
+              sed -i "s#classpath 'com.android.tools.build:gradle.*#&\n        classpath 'com.google.gms:google-services:4.4.2'#" "$ROOT_GRADLE"
+              echo "google-services classpath added to $ROOT_GRADLE"
+            fi
+            if ! grep -q "com.google.gms.google-services" "$APP_GRADLE"; then
+              echo "apply plugin: 'com.google.gms.google-services'" >> "$APP_GRADLE"
+              echo "google-services plugin applied in $APP_GRADLE"
+            fi
+          fi
+
       # ── Fix "Unsafe app blocked" — bump SDK versions ──────────────────────
       # Google Play Protect blocks apps targeting Android API < 31.
       # Capacitor sometimes defaults to older values; force them here.
