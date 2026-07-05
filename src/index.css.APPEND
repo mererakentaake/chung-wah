@@ -1,0 +1,14 @@
+/* ── APPEND THIS BLOCK TO THE END OF src/index.css ─────────────────────────
+   Reserve extra bottom scroll space on every page so the fixed "Debug Log"
+   button (44px tall, sat flush above the system nav bar) never covers a
+   page's bottom-most interactive element. Most pages already reserve
+   pb-28 (112px) or pb-24 (96px) of scroll padding to clear the app's own
+   BottomNav — this override adds the button's height plus a small gap on
+   top of that, using !important because Tailwind's own utility classes
+   are otherwise more specific once purged/ordered by the build. ── */
+.pb-28 {
+  padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px) + 60px) !important;
+}
+.pb-24 {
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px) + 60px) !important;
+}
