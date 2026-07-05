@@ -18,16 +18,16 @@ const USER_OPTIONS = [
 const ERROR_MSGS = {
   'USER_NOT_FOUND':          'No account found with that email.',
   'USER_NOT_PREREGISTERED':  'Your email has not been pre-registered. Contact the school admin.',
-  'NEEDS_REGISTRATION':      'Account not yet activated. Switch to "Register" below to set your password.',
+  'NEEDS_REGISTRATION':      'Account not yet activated. Switch to "Register" to set your password.',
+  'TOO_YOUNG':               'Students in this class do not have direct app access. Your parent can view your information from their Parent portal.',
+  'NEEDS_PARENT_PERMISSION': 'Your parent has not yet enabled app access. Ask them to enable it from their Parent portal.',
   'NOT_AN_ADMIN':            'This account does not have admin access.',
   'NOT_AN_ACCOUNTANT':       'This account does not have accounts access.',
-  'FIRESTORE_RULES_BLOCKED':   'Access denied. Ask your admin to update Firestore security rules.',
-  'TOO_YOUNG':                 'Students in this class do not have direct app access. Your parent or guardian can view your information from their Parent portal.',
-  'NEEDS_PARENT_PERMISSION':   'Your parent has not yet enabled app access for your account. Ask them to enable it from their Parent portal under your profile.',
+  'FIRESTORE_RULES_BLOCKED': 'Access denied. Ask your admin to update Firestore security rules.',
   'auth/wrong-password':     'Incorrect password.',
   'auth/invalid-credential': 'Incorrect email or password.',
   'auth/user-not-found':     'No account found with that email.',
-  'auth/email-already-in-use': 'Email already registered. Try signing in instead.',
+  'auth/email-already-in-use': 'Email already registered. Try signing in.',
   'auth/weak-password':      'Password must be at least 6 characters.',
   'auth/network-request-failed': 'Network error. Check your connection.',
   'auth/too-many-requests':  'Too many attempts. Try again later.',
@@ -46,7 +46,6 @@ export default function Login() {
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
   const isAdmin    = userType === USER_TYPES.ADMIN;
   const isAccounts = userType === USER_TYPES.ACCOUNTS;
-  const isPrivileged = isAdmin;
   const activeColor = USER_OPTIONS.find(o => o.value === userType)?.color || '#F4A334';
 
   const handleTypeChange = (type) => {
@@ -61,13 +60,9 @@ export default function Login() {
   const submit = async () => {
     setError('');
     const { email, password, confirmPassword } = form;
-    if (!email.trim() || !password.trim()) {
-      setError('Please fill in all fields.');
-      return;
-    }
-    if (!isPrivileged && mode === 'register' && password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
+    if (!email.trim() || !password.trim()) { setError('Please fill in all fields.'); return; }
+    if (!isAdmin && !isAccounts && mode === 'register' && password !== confirmPassword) {
+      setError('Passwords do not match.'); return;
     }
     setLoading(true);
     try {
@@ -84,7 +79,7 @@ export default function Login() {
       } else if (isAccounts && mode === 'register') {
         const user = await registerAccounts({ email, password });
         setAuthState(USER_TYPES.ACCOUNTS, user.uid);
-        toast.success('Accounts account created!');
+        toast.success('Accounts account activated!');
         navigate(ROUTES.ACCOUNTS_DASHBOARD, { replace: true });
       } else if (mode === 'login') {
         const loginType = resolveLoginType(userType);
@@ -108,10 +103,8 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      {/* Header */}
       <div className="flex flex-col items-center pt-10 pb-5 px-6 bg-gradient-to-b from-gray-50 to-white">
-        <img src="/school-crest.png" alt="Chung Wah"
-          className="w-20 h-20 object-contain drop-shadow-md mb-3" />
+        <img src="/school-crest.png" alt="Chung Wah" className="w-20 h-20 object-contain drop-shadow-md mb-3" />
         <h1 className="font-display font-extrabold text-gray-900 text-xl tracking-tight">Chung Wah</h1>
         <p className="text-gray-400 text-xs font-body">E-School Platform</p>
       </div>
@@ -130,20 +123,16 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Role selector */}
         <div className="flex gap-1.5 mb-5 p-1 rounded-2xl bg-gray-100 border border-gray-200 overflow-x-auto">
           {USER_OPTIONS.map(opt => (
             <button key={opt.value} onClick={() => handleTypeChange(opt.value)}
               className="flex-shrink-0 px-3 py-2.5 rounded-xl font-display font-semibold text-xs transition-all duration-200"
-              style={userType === opt.value
-                ? { background: opt.color, color: '#fff' }
-                : { color: '#9ca3af' }}>
+              style={userType === opt.value ? { background: opt.color, color: '#fff' } : { color: '#9ca3af' }}>
               {opt.label}
             </button>
           ))}
         </div>
 
-        {/* Role notice */}
         {isAdmin && (
           <div className="flex items-start gap-2.5 p-3 rounded-xl bg-purple-50 border border-purple-200 mb-4">
             <ShieldCheck size={15} className="text-purple-500 shrink-0 mt-0.5" />
@@ -153,36 +142,36 @@ export default function Login() {
         {isAccounts && (
           <div className="flex items-start gap-2.5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 mb-4">
             <Calculator size={15} className="text-emerald-500 shrink-0 mt-0.5" />
-            <p className="text-emerald-600 text-xs font-body">
-              Your email must be pre-registered by the Admin or a Teacher before you can activate your account.
-            </p>
+            <p className="text-emerald-600 text-xs font-body">Your email must be pre-registered by Admin before you can activate your account.</p>
           </div>
         )}
 
         <div className="flex flex-col gap-4">
           <div>
             <label className="text-gray-500 text-xs font-body font-medium mb-1.5 block">Email</label>
-            <input className="field" type="email" placeholder="you@example.com"
-              value={form.email} onChange={set('email')} autoComplete="email" />
+            <input className="field" type="email" placeholder="you@example.com" value={form.email} onChange={set('email')} autoComplete="email" />
           </div>
           <div>
             <label className="text-gray-500 text-xs font-body font-medium mb-1.5 block">Password</label>
             <div className="relative">
-              <input className="field pr-11" type={showPass ? 'text' : 'password'}
-                placeholder="Your password" value={form.password} onChange={set('password')}
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
-              <button type="button" onClick={() => setShowPass(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <input className="field pr-11" type={showPass ? 'text' : 'password'} placeholder="Your password"
+                value={form.password} onChange={set('password')} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+              <button type="button" onClick={() => setShowPass(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                 {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
           </div>
 
-          {!isPrivileged && mode === 'register' && (
+          {!isAdmin && !isAccounts && mode === 'register' && (
             <div>
               <label className="text-gray-500 text-xs font-body font-medium mb-1.5 block">Confirm Password</label>
-              <input className="field" type="password" placeholder="Re-enter password"
-                value={form.confirmPassword} onChange={set('confirmPassword')} />
+              <input className="field" type="password" placeholder="Re-enter password" value={form.confirmPassword} onChange={set('confirmPassword')} />
+            </div>
+          )}
+          {isAccounts && mode === 'register' && (
+            <div>
+              <label className="text-gray-500 text-xs font-body font-medium mb-1.5 block">Confirm Password</label>
+              <input className="field" type="password" placeholder="Re-enter password" value={form.confirmPassword} onChange={set('confirmPassword')} />
             </div>
           )}
 
@@ -194,10 +183,7 @@ export default function Login() {
           )}
 
           <div className="flex justify-end -mt-1">
-            <Link to="/forgot-password" className="text-xs font-body hover:underline"
-              style={{ color: activeColor }}>
-              Forgot password?
-            </Link>
+            <Link to="/forgot-password" className="text-xs font-body hover:underline" style={{ color: activeColor }}>Forgot password?</Link>
           </div>
 
           <button onClick={submit} disabled={loading}
@@ -205,15 +191,13 @@ export default function Login() {
             style={{
               background: isAdmin ? 'linear-gradient(135deg,#a855f7,#7c3aed)'
                 : isAccounts ? 'linear-gradient(135deg,#10b981,#059669)'
-                : `linear-gradient(135deg,#F4A334,#F9C61F)`,
+                : 'linear-gradient(135deg,#F4A334,#F9C61F)',
               color: isAdmin || isAccounts ? '#fff' : '#1a1f36',
             }}>
             {loading
               ? <div className="w-5 h-5 border-2 border-current opacity-40 border-t-current rounded-full animate-spin" />
-              : isAdmin ? 'Sign In as Admin'
-              : isAccounts ? 'Sign In to Accounts'
-              : mode === 'login' ? 'Sign In' : 'Create Account'
-            }
+              : isAdmin ? 'Sign In as Admin' : isAccounts ? (mode === 'login' ? 'Sign In to Accounts' : 'Activate Account')
+              : mode === 'login' ? 'Sign In' : 'Create Account'}
           </button>
 
           {!isAdmin && (
