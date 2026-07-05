@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, GraduationCap, UserPlus, BarChart3, Settings, LogOut,
-  ShieldCheck, ChevronRight, FileText, ClipboardList, DollarSign, Calculator, BookMarked, Award, Star, Bell, FileCheck
+  ShieldCheck, ChevronRight, FileText, ClipboardList, DollarSign, BookMarked, Award, Star, FileCheck, Bell, Calculator
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useBackGuard from '../../hooks/useBackGuard';
@@ -135,17 +135,17 @@ export default function AdminDashboard() {
         </div>
 
         {/* Reports */}
-        <p className="text-gray-400 text-xs font-body font-semibold uppercase tracking-wider mb-3">Curriculum</p>
-        <NavRow icon={FileCheck} label="Permission Forms"
-          sub="View all activity permission forms" color="#7c3aed" route={ROUTES.PERMISSIONS} />
-        <NavRow icon={Star} label="School Clubs"
-          sub="Create and manage extra-curricular clubs" color="#10b981" route={ROUTES.CLUBS} />
+        <p className="text-gray-400 text-xs font-body font-semibold uppercase tracking-wider mb-3">Curriculum & Activities</p>
         <NavRow icon={BookMarked} label="Curriculum Syllabuses"
           sub="View and manage all class syllabuses" color="#6366f1" route={ROUTES.SYLLABUS} />
         <NavRow icon={ClipboardList} label="Assessments"
           sub="All homework, tests, assignments and exams" color="#f59e0b" route={ROUTES.ASSESSMENT} />
         <NavRow icon={Award} label="Report Cards"
           sub="Generate and view final year report cards" color="#a855f7" route={ROUTES.REPORT_CARD} />
+        <NavRow icon={FileCheck} label="Permission Forms"
+          sub="View all activity permission forms" color="#7c3aed" route={ROUTES.PERMISSIONS} />
+        <NavRow icon={Star} label="School Clubs"
+          sub="Create and manage extra-curricular clubs" color="#10b981" route={ROUTES.CLUBS} />
 
         <p className="text-gray-400 text-xs font-body font-semibold uppercase tracking-wider mb-3 mt-6">Reports & Finance</p>
         <div className="flex flex-col gap-3 mb-6">
