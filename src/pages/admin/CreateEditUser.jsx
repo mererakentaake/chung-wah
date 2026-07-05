@@ -13,7 +13,7 @@ import {
   adminGetLinkedParent, adminGetNextEnrolNo,
   adminCreateAccountsUser, adminUpdateAccountsUser, adminGetAccountsUsers,
 } from '../../services/firestore';
-import { ROUTES, TITLES, GENDERS, RELATIONSHIP_TYPES, USER_TYPES, SUBJECTS } from '../../utils/constants';
+import { ROUTES, TITLES, GENDERS, RELATIONSHIP_TYPES, USER_TYPES, SUBJECTS, SCHOOL_STRUCTURE, getClassSection } from '../../utils/constants';
 import { useAuth } from '../../context/AuthContext';
 
 /* ── Error message style helper ──────────────────────────────────────────── */
@@ -333,7 +333,7 @@ export default function CreateEditUser() {
 
   const [form, setForm] = useState({
     givenName: '', familyName: '', displayName: '',
-    email: '', title: '', gender: '', schoolClass: '',
+    email: '', title: '', gender: '', category: '', schoolClass: '',
     relationshipType: 'Parent', teacherClass: '',
     enrollNo: '', subject: '', mobileNo: '', dob: '', bloodGroup: '',
     emergencyContactName: '', emergencyContactPhone: '',
@@ -343,6 +343,15 @@ export default function CreateEditUser() {
 
   // Derived values
   const showClassFields = isStudent; // always show for students
+
+  // Which SCHOOL_STRUCTURE section the chosen Category maps to, and the
+  // class options to offer once a category is picked.
+  const CATEGORY_TO_SECTION = {
+    'Early Childhood': SCHOOL_STRUCTURE.EARLY_CHILDHOOD,
+    'Primary':         SCHOOL_STRUCTURE.PRIMARY,
+    'Secondary':       SCHOOL_STRUCTURE.SECONDARY,
+  };
+  const classOpts = form.category ? (CATEGORY_TO_SECTION[form.category]?.classes || []) : [];
 
   // All prerequisite student fields are filled → ready to generate enrol no.
   const readyForEnrol = !!(
@@ -370,7 +379,12 @@ export default function CreateEditUser() {
         if (rec) {
           const gn = rec.givenName  || (rec.displayName || '').split(' ')[0] || '';
           const fn = rec.familyName || (rec.displayName || '').split(' ').slice(1).join(' ') || '';
-          setForm(f => ({ ...f, ...rec, givenName: gn, familyName: fn, teacherClass: rec.schoolClass || '' }));
+          const derivedSection = rec.schoolClass ? getClassSection(rec.schoolClass) : '';
+          setForm(f => ({
+            ...f, ...rec, givenName: gn, familyName: fn,
+            teacherClass: rec.schoolClass || '',
+            category: derivedSection || '',
+          }));
           if (rec.children?.length) setChildren(rec.children);
         }
         if (isStudent) {
@@ -405,6 +419,12 @@ export default function CreateEditUser() {
   const setVal = k => v => { setForm(f => ({ ...f, [k]: v }));              setErrors(er => ({ ...er, [k]: '' })); };
 
   const setCategory = (val) => {
+    enrolGuardRef.current = false;
+    setForm(f => ({ ...f, category: val, schoolClass: '', enrollNo: '' }));
+    setErrors(er => ({ ...er, category: '', schoolClass: '' }));
+  };
+
+  const setSchoolClass = (val) => {
     enrolGuardRef.current = false;
     setForm(f => ({ ...f, schoolClass: val, enrollNo: '' }));
     setErrors(er => ({ ...er, schoolClass: '' }));
@@ -602,21 +622,16 @@ export default function CreateEditUser() {
 
               <div id="field-category">
                 <CustomDropdown label="Category" value={form.category} onChange={setCategory}
-                  options={['Primary', 'Secondary']} placeholder="Select category" error={errors.category} />
+                  options={['Early Childhood', 'Primary', 'Secondary']} placeholder="Select category" error={errors.category} />
               </div>
 
               {showClassFields && (
-                <div className="flex gap-3">
-                  <div className="flex-1" id="field-standard">
-                    <CustomDropdown label={standardLabel} value={form.standard}
-                      onChange={setVal('standard')} options={standardOpts} placeholder={standardPH}
-                      error={errors.standard} />
-                  </div>
-                  <div className="flex-1" id="field-division">
-                    <CustomDropdown label="Class" value={form.division}
-                      onChange={setVal('division')} options={['A', 'B']} placeholder="Select Class"
-                      error={errors.division} />
-                  </div>
+                <div id="field-schoolClass">
+                  <CustomDropdown label="Class" value={form.schoolClass}
+                    onChange={setSchoolClass} options={classOpts}
+                    placeholder={form.category ? 'Select class' : 'Select category first'}
+                    disabled={!form.category}
+                    error={errors.schoolClass} />
                 </div>
               )}
 
