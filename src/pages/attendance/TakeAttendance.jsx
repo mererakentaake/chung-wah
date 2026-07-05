@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { adminGetStudents, submitAttendance, getClassAttendance } from '../../services/firestore';
 import TopBar from '../../components/layout/TopBar';
 import BottomNav from '../../components/layout/BottomNav';
-import { ATTENDANCE_STATUSES, SUBJECTS, SCHOOL_STRUCTURE } from '../../utils/constants';
+import { ATTENDANCE_STATUSES, SUBJECTS } from '../../utils/constants';
 
 const STATUS_CONFIG = {
   [ATTENDANCE_STATUSES.PRESENT]: { label: 'P', full: 'Present', color: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
@@ -30,7 +30,7 @@ export default function TakeAttendance() {
   const { userType } = useAuth();
   const [students, setStudents]               = useState([]);
   const [attendance, setAttendance]           = useState({});
-  const [selectedClass, setSelectedClass]      = useState('');
+  const [filter, setFilter]                   = useState({ standard: '', division: '' });
   const [subject, setSubject]                 = useState('');
   const [date, setDate]                       = useState(getToday());
   const [loading, setLoading]                 = useState(false);
@@ -41,18 +41,19 @@ export default function TakeAttendance() {
     setLoading(true);
     adminGetStudents().then(all => {
       let filtered = all;
-      if (selectedClass) filtered = filtered.filter(s => s.schoolClass === selectedClass);
+      if (filter.standard) filtered = filtered.filter(s => String(s.standard) === String(filter.standard));
+      if (filter.division)  filtered = filtered.filter(s => s.division?.toUpperCase() === filter.division.toUpperCase());
       setStudents(filtered);
       const def = {};
       filtered.forEach(s => { def[s.id] = ATTENDANCE_STATUSES.PRESENT; });
       setAttendance(def);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, [selectedClass]);
+  }, [filter]);
 
   useEffect(() => {
-    if (!selectedClass) { setAlreadySubmitted(false); return; }
-    getClassAttendance(date, selectedClass, '').then(existing => {
+    if (!filter.standard || !filter.division) { setAlreadySubmitted(false); return; }
+    getClassAttendance(date, filter.standard, filter.division).then(existing => {
       setAlreadySubmitted(!!existing);
       if (existing?.records) {
         const map = {};
@@ -60,7 +61,7 @@ export default function TakeAttendance() {
         setAttendance(map);
       }
     }).catch(() => {});
-  }, [date, selectedClass]);
+  }, [date, filter]);
 
   const cycleStatus = (studentId) => {
     setAttendance(prev => {
@@ -77,7 +78,7 @@ export default function TakeAttendance() {
   };
 
   const handleSave = async () => {
-    if (!selectedClass) { toast.error('Please select a class first'); return; }
+    if (!filter.standard || !filter.division) { toast.error('Please select a class first'); return; }
     if (students.length === 0) { toast.error('No students found for this class'); return; }
     setSaving(true);
     try {
@@ -86,7 +87,7 @@ export default function TakeAttendance() {
         studentName: s.displayName || s.name || 'Student',
         status: attendance[s.id] || ATTENDANCE_STATUSES.PRESENT,
       }));
-      await submitAttendance({ date, standard: selectedClass, division: '', subject, records });
+      await submitAttendance({ date, standard: filter.standard, division: filter.division, subject, records });
       toast.success('Attendance saved!');
       setAlreadySubmitted(true);
     } catch (err) {
@@ -112,18 +113,19 @@ export default function TakeAttendance() {
         {/* Filters card */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
           <p className="text-gray-400 text-xs font-body font-semibold uppercase tracking-wider mb-3">Class & Date</p>
-          <div className="mb-3">
-            <label className="text-gray-500 text-xs font-body mb-1.5 block">Class</label>
-            <select className="field" value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
-              <option value="">Select class...</option>
-              {Object.values(SCHOOL_STRUCTURE).map(section => (
-                <optgroup key={section.label} label={section.label}>
-                  {section.classes.map(cls => (
-                    <option key={cls} value={cls}>{cls}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="text-gray-500 text-xs font-body mb-1.5 block">Standard</label>
+              <input className="field" placeholder="e.g. 5"
+                value={filter.standard}
+                onChange={e => setFilter(f => ({ ...f, standard: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-gray-500 text-xs font-body mb-1.5 block">Division</label>
+              <input className="field" placeholder="e.g. A"
+                value={filter.division}
+                onChange={e => setFilter(f => ({ ...f, division: e.target.value }))} />
+            </div>
           </div>
           <div className="mb-3">
             <label className="text-gray-500 text-xs font-body mb-1.5 block">Date</label>
