@@ -1,6 +1,7 @@
 // src/pages/Profile.jsx
 import React, { useState, useEffect } from 'react';
-import { Camera, Lock, Send, GraduationCap, X } from 'lucide-react';
+import { Camera as CameraIcon, Lock, Send, GraduationCap, X, ShieldCheck } from 'lucide-react';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { getProfile, updateProfilePhoto, requestProfileCorrection, uploadFile } from '../services/firestore';
@@ -18,11 +19,28 @@ function InfoRow({ label, value }) {
   );
 }
 
+// Any photo upload that hasn't settled within this window is treated as
+// failed so the UI can never spin forever, even if the underlying
+// Firebase Storage call never resolves or rejects.
+const UPLOAD_TIMEOUT_MS = 25000;
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
 export default function Profile() {
-  const { userType, userId, user } = useAuth();
+  const { userType, userId, user, isAdmin, isAccounts } = useAuth();
   const isStudent = userType === USER_TYPES.STUDENT;
   const isTeacher = userType === USER_TYPES.TEACHER;
   const isParent  = userType === USER_TYPES.PARENT;
+  // Only student/teacher/parent profiles are admin-managed and eligible
+  // for a correction request — admin and accounts manage their own info.
+  const canRequestCorrection = isStudent || isTeacher || isParent;
 
   const [profile, setProfile] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -31,20 +49,47 @@ export default function Profile() {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    if (userId) getProfile(userId).then(setProfile).catch(() => {});
-  }, [userId]);
+    if (userId) getProfile(userId, userType).then(setProfile).catch(() => {});
+  }, [userId, userType]);
 
-  const handlePhoto = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const handlePhoto = async () => {
+    if (uploading) return;
     setUploading(true);
     try {
-      const url = await uploadFile(file, `schools/${localStorage.getItem('schoolCode')}/profiles/${userId}`);
-      await updateProfilePhoto(userId, url);
+      console.log('[Profile] Photo upload: opening picker…');
+      const photo = await Camera.getPhoto({
+        quality: 80,
+        allowEditing: false,
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Prompt,
+      });
+      if (!photo?.webPath) { setUploading(false); return; } // user cancelled
+
+      console.log('[Profile] Photo upload: picked photo, converting to blob…');
+      const fileBlob = await withTimeout(
+        fetch(photo.webPath).then(r => r.blob()),
+        UPLOAD_TIMEOUT_MS,
+        'Reading picked photo'
+      );
+
+      console.log('[Profile] Photo upload: uploading to Storage…');
+      const path = `schools/${localStorage.getItem('schoolCode') || 'chungwah'}/profiles/${userId}`;
+      const url = await withTimeout(uploadFile(fileBlob, path), UPLOAD_TIMEOUT_MS, 'Storage upload');
+
+      console.log('[Profile] Photo upload: saving photoUrl to Firestore…');
+      await withTimeout(updateProfilePhoto(userId, url, userType), UPLOAD_TIMEOUT_MS, 'Saving profile');
+
       setProfile(p => ({ ...p, photoUrl: url }));
       toast.success('Photo updated!');
-    } catch { toast.error('Photo upload failed'); }
-    finally { setUploading(false); }
+      console.log('[Profile] Photo upload: done.');
+    } catch (err) {
+      console.error('[Profile] Photo upload failed:', err);
+      toast.error(err?.message?.includes('timed out')
+        ? 'Upload is taking too long — check your connection and try again.'
+        : 'Photo upload failed');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const sendCorrection = async () => {
@@ -87,10 +132,14 @@ export default function Profile() {
                   </div>
                 )}
               </div>
-              <label className="absolute -bottom-2 -right-2 w-8 h-8 rounded-xl bg-yellow-400 flex items-center justify-center cursor-pointer shadow-lg">
-                <Camera size={15} className="text-gray-900" />
-                <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
-              </label>
+              <button
+                type="button"
+                onClick={handlePhoto}
+                disabled={uploading}
+                className="absolute -bottom-2 -right-2 w-8 h-8 rounded-xl bg-yellow-400 flex items-center justify-center shadow-lg disabled:opacity-60"
+              >
+                <CameraIcon size={15} className="text-gray-900" />
+              </button>
             </div>
             <p className="text-white font-display font-bold text-lg mt-4">
               {profileTitle}
@@ -120,8 +169,19 @@ export default function Profile() {
         {/* Read-only profile card */}
         <div className="glass-card p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
-            <Lock size={12} className="text-white/30" />
-            <span className="text-white/30 text-xs font-body">Profile set by school admin</span>
+            {canRequestCorrection ? (
+              <>
+                <Lock size={12} className="text-white/30" />
+                <span className="text-white/30 text-xs font-body">Profile set by school admin</span>
+              </>
+            ) : (
+              <>
+                <ShieldCheck size={12} className="text-white/30" />
+                <span className="text-white/30 text-xs font-body">
+                  {isAdmin ? 'Administrator account' : 'Accounts team account'}
+                </span>
+              </>
+            )}
           </div>
           <InfoRow label="Full Name" value={profile?.displayName} />
           {(isTeacher || !isStudent) && <InfoRow label="Title" value={profile?.title} />}
@@ -135,19 +195,21 @@ export default function Profile() {
           {!isStudent && <InfoRow label="Relationship" value={profile?.relationshipType} />}
         </div>
 
-        {/* Request correction button */}
-        <button
-          onClick={() => setShowCorrection(true)}
-          className="w-full py-3.5 rounded-2xl flex items-center justify-center gap-2 font-display font-semibold text-sm transition-all"
-          style={{ background: 'rgba(249,198,31,0.10)', border: '1px solid rgba(249,198,31,0.25)', color: '#F9C61F' }}
-        >
-          <Send size={15} />
-          Request to Correct Profile Details
-        </button>
+        {/* Request correction button — only relevant for admin-managed profiles */}
+        {canRequestCorrection && (
+          <button
+            onClick={() => setShowCorrection(true)}
+            className="w-full py-3.5 rounded-2xl flex items-center justify-center gap-2 font-display font-semibold text-sm transition-all"
+            style={{ background: 'rgba(249,198,31,0.10)', border: '1px solid rgba(249,198,31,0.25)', color: '#F9C61F' }}
+          >
+            <Send size={15} />
+            Request to Correct Profile Details
+          </button>
+        )}
       </div>
 
       {/* Correction modal */}
-      {showCorrection && (
+      {showCorrection && canRequestCorrection && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end" onClick={() => setShowCorrection(false)}>
           <div
             className="w-full rounded-t-3xl p-6 flex flex-col gap-4"
