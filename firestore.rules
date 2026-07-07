@@ -12,10 +12,16 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Admins — any authenticated user can read (needed for login check)
+    // Admins — any authenticated user can read (needed for login check).
+    // Writes are otherwise blocked (an authenticated user must never be able
+    // to self-provision admin status by creating/editing an admins/{uid}
+    // doc) — the one exception is an existing admin updating their OWN
+    // photoUrl from the Profile screen.
     match /admins/{docId} {
       allow read: if request.auth != null;
-      allow write: if false;
+      allow update: if request.auth != null && request.auth.uid == docId
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photoUrl']);
+      allow create, delete: if false;
     }
 
     // Accounts users — authenticated users can read/write
