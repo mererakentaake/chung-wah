@@ -7,8 +7,40 @@
 :root {
   --gold-500: #F9C61F;
   --coral-500: #E84545;
-  --card-bg: #ffffff;
-  --card-border: rgba(0,0,0,0.07);
+
+  /* ── Theme tokens (Light mode defaults) ───────────────────────────── */
+  --page-bg: #f4f6fb;
+  --page-text: #1a1f36;
+  --mesh-bg: #f4f6fb;
+  --mesh-glow-1: rgba(249,198,31,0.10);
+  --mesh-glow-2: rgba(232,69,69,0.06);
+  --card-bg: rgba(10,15,44,0.035);
+  --card-border: rgba(10,15,44,0.09);
+  --card-shadow: rgba(10,15,44,0.08);
+  --field-bg: rgba(10,15,44,0.045);
+  --field-border: rgba(10,15,44,0.12);
+  --field-text: #1a1f36;
+  --field-placeholder: rgba(26,31,54,0.4);
+  --topbar-bg: rgba(244,246,251,0.85);
+  --divider: rgba(10,15,44,0.08);
+}
+
+.dark {
+  /* ── Theme tokens (Dark mode — original app look) ─────────────────── */
+  --page-bg: #0A0F2C;
+  --page-text: #ffffff;
+  --mesh-bg: #0A0F2C;
+  --mesh-glow-1: rgba(249,198,31,0.08);
+  --mesh-glow-2: rgba(232,69,69,0.05);
+  --card-bg: rgba(255,255,255,0.06);
+  --card-border: rgba(255,255,255,0.09);
+  --card-shadow: rgba(0,0,0,0.28);
+  --field-bg: rgba(255,255,255,0.07);
+  --field-border: rgba(255,255,255,0.12);
+  --field-text: #ffffff;
+  --field-placeholder: rgba(255,255,255,0.3);
+  --topbar-bg: rgba(10,15,44,0.75);
+  --divider: rgba(255,255,255,0.05);
 }
 
 * {
@@ -27,8 +59,9 @@ body {
   min-height: 100vh;
   min-height: -webkit-fill-available;
   overflow-x: hidden;
-  background: #f4f6fb;
-  color: #1a1f36;
+  background: var(--page-bg);
+  color: var(--page-text);
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 #root {
@@ -44,12 +77,13 @@ body {
 /* ── Selection ─────────────────────────────────────── */
 ::selection { background: rgba(249,198,31,0.3); color: #1a1f36; }
 
-/* ── Dark glass card (for dark/mesh-bg pages) ───────── */
+/* ── Glass card — follows the current theme ──────────── */
 .glass-card {
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.09);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
   border-radius: 20px;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.28);
+  box-shadow: 0 2px 16px var(--card-shadow);
+  transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
 /* ── White card (for explicitly light pages) ─────────── */
@@ -75,12 +109,13 @@ body {
   background-clip: text;
 }
 
-/* ── Dark mesh background ──────────────────────────── */
+/* ── Mesh background — follows the current theme ───── */
 .mesh-bg {
-  background: #0A0F2C;
+  background: var(--mesh-bg);
   background-image:
-    radial-gradient(at 20% 20%, rgba(249,198,31,0.08) 0px, transparent 50%),
-    radial-gradient(at 80% 80%, rgba(232,69,69,0.05) 0px, transparent 50%);
+    radial-gradient(at 20% 20%, var(--mesh-glow-1) 0px, transparent 50%),
+    radial-gradient(at 80% 80%, var(--mesh-glow-2) 0px, transparent 50%);
+  transition: background-color 0.25s ease;
 }
 
 /* ── Bottom nav safe area ──────────────────────────── */
@@ -135,14 +170,16 @@ body {
     focus:ring-yellow-400/20 transition-all duration-200 font-body;
 }
 
-/* ── Form inputs (dark bg / mesh-bg pages) ─────────────── */
+/* ── Form inputs (theme-aware — used across the app) ───── */
 .field-dark {
-  @apply w-full px-4 py-3 rounded-2xl border text-white
-    placeholder-white/30 focus:outline-none focus:border-yellow-400 focus:ring-2
+  @apply w-full px-4 py-3 rounded-2xl border
+    focus:outline-none focus:border-yellow-400 focus:ring-2
     focus:ring-yellow-400/20 transition-all duration-200 font-body;
-  background: rgba(255,255,255,0.07);
-  border-color: rgba(255,255,255,0.12);
+  background: var(--field-bg);
+  border-color: var(--field-border);
+  color: var(--field-text);
 }
+.field-dark::placeholder { color: var(--field-placeholder); }
 
 .field-light {
   @apply w-full px-4 py-3 rounded-2xl bg-gray-100 border border-gray-200 text-gray-800
