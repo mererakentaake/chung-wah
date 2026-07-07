@@ -1,22 +1,63 @@
 // src/services/firestore.js
 import {
-  collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
-  query, where, orderBy, limit, onSnapshot, serverTimestamp, setDoc
+  collection, doc, getDoc, getDocs,
+  addDoc as _addDoc, updateDoc as _updateDoc, deleteDoc as _deleteDoc, setDoc as _setDoc,
+  query, where, orderBy, limit, onSnapshot, serverTimestamp
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from './firebase';
+import { cacheSet, cacheDelete } from './offlineCache';
+import { USER_TYPES } from '../utils/constants';
+
+// ─── Firestore write wrappers ─────────────────────────────────────────────
+// Every addDoc/setDoc/updateDoc/deleteDoc call in this file goes through
+// these wrappers (same names, so no call site below needs to change) so
+// that every piece of data entry is mirrored into local on-device storage
+// (via localforage/IndexedDB) in addition to Firestore. Firestore is still
+// the source of truth — the local copy is a best-effort mirror for offline
+// access and local backup, and never blocks or fails the real write.
+const addDoc = async (colRef, data) => {
+  const ref = await _addDoc(colRef, data);
+  cacheSet(`${colRef.path}/${ref.id}`, { id: ref.id, ...data });
+  return ref;
+};
+const setDoc = async (docRef, data, options) => {
+  const result = await _setDoc(docRef, data, options);
+  cacheSet(docRef.path, { id: docRef.id, ...data }, !!(options && options.merge));
+  return result;
+};
+const updateDoc = async (docRef, data) => {
+  const result = await _updateDoc(docRef, data);
+  cacheSet(docRef.path, { id: docRef.id, ...data }, true); // updateDoc is always a partial patch
+  return result;
+};
+const deleteDoc = async (docRef) => {
+  const result = await _deleteDoc(docRef);
+  cacheDelete(docRef.path);
+  return result;
+};
 
 // No school prefix — this app is for Chung Wah School only.
 const userId = () => localStorage.getItem('userId') || '';
 
 // ─── Profile ─────────────────────────────────────────────────────────────────
-export const getProfile = async (uid) => {
-  const snap = await getDoc(doc(db, 'users', uid));
+// Admin and Accounts users are not stored in the `users` collection (that's
+// only for students/teachers/parents) — their records live in `admins` and
+// `accountsUsers` respectively. Pass the userType so the right collection is
+// read/written; if omitted, `users` is assumed for backwards compatibility.
+const profileCollection = (userType) => {
+  if (userType === USER_TYPES.ADMIN) return 'admins';
+  if (userType === USER_TYPES.ACCOUNTS) return 'accountsUsers';
+  return 'users';
+};
+
+export const getProfile = async (uid, userType) => {
+  const snap = await getDoc(doc(db, profileCollection(userType), uid));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 };
 
-export const updateProfilePhoto = async (uid, photoUrl) => {
-  await setDoc(doc(db, 'users', uid), { photoUrl }, { merge: true });
+export const updateProfilePhoto = async (uid, photoUrl, userType) => {
+  await setDoc(doc(db, profileCollection(userType), uid), { photoUrl }, { merge: true });
 };
 
 export const updateProfile = async (uid, data) => {
@@ -273,9 +314,12 @@ export const getChildren = async (childIds) => {
 
 // ─── Upload file ──────────────────────────────────────────────────────────────
 export const uploadFile = async (file, path) => {
+  console.log(`[uploadFile] starting upload to ${path} (${file?.size || 0} bytes)`);
   const storageRef = ref(storage, path);
   await uploadBytes(storageRef, file);
-  return getDownloadURL(storageRef);
+  const url = await getDownloadURL(storageRef);
+  console.log(`[uploadFile] finished upload to ${path}`);
+  return url;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
