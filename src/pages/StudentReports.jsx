@@ -49,7 +49,7 @@ function StudentSearchBox({ students, selected, onSelect }) {
         />
       </div>
       {open && matches.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 rounded-xl overflow-hidden shadow-2xl"
+        <div className="absolute z-50 w-full mt-1 rounded-xl overflow-hidden shadow-2xl surface-dark"
           style={{ background: '#1a2040', border: '1px solid rgba(255,255,255,0.12)' }}>
           {matches.map(s => (
             <button key={s.id} type="button" onMouseDown={() => pick(s)}
@@ -197,7 +197,7 @@ export default function StudentReports() {
       {/* New Report Sheet */}
       {showForm && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end" onClick={() => setShowForm(false)}>
-          <div className="w-full max-h-[90vh] overflow-y-auto rounded-t-3xl p-6 flex flex-col gap-4"
+          <div className="w-full max-h-[90vh] overflow-y-auto rounded-t-3xl p-6 flex flex-col gap-4 surface-dark"
             style={{ background: '#141829', border: '1px solid rgba(255,255,255,0.1)' }}
             onClick={e => e.stopPropagation()}>
 

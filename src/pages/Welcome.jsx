@@ -130,7 +130,7 @@ export default function Welcome() {
   const prev = () => { if (current > 0) setCurrent(c => c - 1); };
 
   return (
-    <div className="relative min-h-screen flex flex-col overflow-hidden" style={{ background: '#0A0F2C' }}>
+    <div className="relative min-h-screen flex flex-col overflow-hidden surface-dark" style={{ background: '#0A0F2C' }}>
       {/* Background glow */}
       <div
         className="absolute inset-0 transition-all duration-700"

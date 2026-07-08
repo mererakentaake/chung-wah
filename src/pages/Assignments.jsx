@@ -30,7 +30,7 @@ function UploadModal({ onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end">
-      <div className="w-full bg-navy-800 rounded-t-3xl p-5 pb-safe max-h-[85vh] overflow-y-auto"
+      <div className="w-full bg-navy-800 rounded-t-3xl p-5 pb-safe max-h-[85vh] overflow-y-auto surface-dark"
         style={{ background: '#0f1530' }}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="font-display font-bold text-white text-lg">Upload Assignment</h3>

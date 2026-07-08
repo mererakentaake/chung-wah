@@ -81,7 +81,7 @@ export default function Parenting() {
       {/* Article modal */}
       {selected && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end">
-          <div className="w-full max-h-[80vh] overflow-y-auto rounded-t-3xl p-6" style={{ background: '#0f1530' }}>
+          <div className="w-full max-h-[80vh] overflow-y-auto rounded-t-3xl p-6 surface-dark" style={{ background: '#0f1530' }}>
             <div className="flex items-start justify-between gap-3 mb-4">
               <h3 className="font-display font-bold text-white text-lg leading-snug flex-1">{selected.title}</h3>
               <button onClick={() => setSelected(null)} className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center shrink-0">

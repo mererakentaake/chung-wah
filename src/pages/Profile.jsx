@@ -212,7 +212,7 @@ export default function Profile() {
       {showCorrection && canRequestCorrection && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end" onClick={() => setShowCorrection(false)}>
           <div
-            className="w-full rounded-t-3xl p-6 flex flex-col gap-4"
+            className="w-full rounded-t-3xl p-6 flex flex-col gap-4 surface-dark"
             style={{ background: '#141829', border: '1px solid rgba(255,255,255,0.1)' }}
             onClick={e => e.stopPropagation()}
           >

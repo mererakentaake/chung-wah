@@ -51,7 +51,7 @@ function SearchBox({ label, items, displayKey, subKey, selected, onSelect, place
         />
       </div>
       {open && matches.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 rounded-xl overflow-hidden shadow-2xl"
+        <div className="absolute z-50 w-full mt-1 rounded-xl overflow-hidden shadow-2xl surface-dark"
           style={{ background: '#1a2040', border: '1px solid rgba(255,255,255,0.12)' }}>
           {matches.map(item => (
             <button key={item.id} type="button" onMouseDown={() => pick(item)}

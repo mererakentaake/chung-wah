@@ -33,7 +33,7 @@ function SettingRow({ icon: Icon, label, subtitle, onClick, danger, iconColor, r
 function SignOutModal({ onConfirm, onCancel, loading }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-5">
-      <div className="w-full max-w-sm rounded-3xl p-6 flex flex-col gap-5"
+      <div className="w-full max-w-sm rounded-3xl p-6 flex flex-col gap-5 surface-dark"
         style={{ background: '#141829', border: '1px solid rgba(255,255,255,0.12)' }}>
         <div className="flex items-center justify-between">
           <h3 className="font-display font-bold text-white text-lg">Sign Out?</h3>
