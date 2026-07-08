@@ -14,9 +14,9 @@ import { ROUTES } from '../../utils/constants';
 
 function StatCard({ label, value, color }) {
   return (
-    <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
+    <div className="flex-1 glass-card p-4 text-center">
       <p className="font-display font-extrabold text-2xl" style={{ color }}>{value != null ? value : "..."}</p>
-      <p className="text-gray-400 text-xs font-body mt-0.5">{label}</p>
+      <p className="text-white/50 text-xs font-body mt-0.5">{label}</p>
     </div>
   );
 }
@@ -25,21 +25,21 @@ function NavRow({ icon: Icon, label, sub, color, route, badge }) {
   const navigate = useNavigate();
   return (
     <button onClick={() => navigate(route)}
-      className="w-full flex items-center gap-3.5 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left">
+      className="w-full flex items-center gap-3.5 p-4 glass-card hover:shadow-md active:scale-[0.98] transition-all text-left">
       <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
         style={{ background: color + "18" }}>
         <Icon size={19} style={{ color }} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-gray-800 font-display font-semibold text-sm">{label}</p>
-        {sub && <p className="text-gray-400 text-xs font-body mt-0.5 truncate">{sub}</p>}
+        <p className="text-white font-display font-semibold text-sm">{label}</p>
+        {sub && <p className="text-white/50 text-xs font-body mt-0.5 truncate">{sub}</p>}
       </div>
       {badge != null && (
         <span className="text-xs font-display font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500 border border-red-200 shrink-0 mr-1">
           {badge}
         </span>
       )}
-      <ChevronRight size={15} className="text-gray-300 shrink-0" />
+      <ChevronRight size={15} className="text-white/30 shrink-0" />
     </button>
   );
 }
@@ -66,7 +66,7 @@ export default function AdminDashboard() {
   const latestReport = reports[0];
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen mesh-bg flex flex-col">
       {/* Header */}
       <div className="bg-white border-b border-gray-100 px-5 pt-12 pb-5 flex items-start justify-between shadow-sm">
         <div>
@@ -94,33 +94,33 @@ export default function AdminDashboard() {
 
         {/* Latest financial report from Accounts */}
         {latestReport && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6">
+          <div className="glass-card p-4 mb-6">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-gray-400 text-xs font-body font-semibold uppercase tracking-wider">Latest Financial Report</p>
-              <span className="text-gray-300 text-xs font-body">{latestReport.generatedDate}</span>
+              <p className="text-white/50 text-xs font-body font-semibold uppercase tracking-wider">Latest Financial Report</p>
+              <span className="text-white/30 text-xs font-body">{latestReport.generatedDate}</span>
             </div>
-            <p className="text-gray-800 font-display font-semibold text-sm mb-3">{latestReport.title}</p>
+            <p className="text-white font-display font-semibold text-sm mb-3">{latestReport.title}</p>
             <div className="grid grid-cols-3 gap-2">
-              <div className="text-center p-2 rounded-xl bg-emerald-50">
-                <p className="text-emerald-600 font-display font-bold">RM {(latestReport.totalRevenue || 0).toFixed(0)}</p>
-                <p className="text-gray-400 text-[10px] font-body">Collected</p>
+              <div className="text-center p-2 rounded-xl bg-emerald-500/10">
+                <p className="text-emerald-400 font-display font-bold">RM {(latestReport.totalRevenue || 0).toFixed(0)}</p>
+                <p className="text-white/50 text-[10px] font-body">Collected</p>
               </div>
-              <div className="text-center p-2 rounded-xl bg-red-50">
-                <p className="text-red-500 font-display font-bold">RM {(latestReport.totalExpenses || 0).toFixed(0)}</p>
-                <p className="text-gray-400 text-[10px] font-body">Expenses</p>
+              <div className="text-center p-2 rounded-xl bg-red-500/10">
+                <p className="text-red-400 font-display font-bold">RM {(latestReport.totalExpenses || 0).toFixed(0)}</p>
+                <p className="text-white/50 text-[10px] font-body">Expenses</p>
               </div>
-              <div className={"text-center p-2 rounded-xl " + ((latestReport.netBalance || 0) >= 0 ? 'bg-emerald-50' : 'bg-red-50')}>
-                <p className={"font-display font-bold " + ((latestReport.netBalance || 0) >= 0 ? 'text-emerald-600' : 'text-red-500')}>
+              <div className={"text-center p-2 rounded-xl " + ((latestReport.netBalance || 0) >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10')}>
+                <p className={"font-display font-bold " + ((latestReport.netBalance || 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
                   RM {(latestReport.netBalance || 0).toFixed(0)}
                 </p>
-                <p className="text-gray-400 text-[10px] font-body">Net</p>
+                <p className="text-white/50 text-[10px] font-body">Net</p>
               </div>
             </div>
           </div>
         )}
 
         {/* User management */}
-        <p className="text-gray-400 text-xs font-body font-semibold uppercase tracking-wider mb-3">User Management</p>
+        <p className="text-white/50 text-xs font-body font-semibold uppercase tracking-wider mb-3">User Management</p>
         <div className="flex flex-col gap-3 mb-6">
           <NavRow icon={GraduationCap} label="Manage Students"
             sub="View, add and edit student accounts" color="#F4A334" route={ROUTES.ADMIN_STUDENTS} />
@@ -137,7 +137,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Reports */}
-        <p className="text-gray-400 text-xs font-body font-semibold uppercase tracking-wider mb-3">Curriculum & Activities</p>
+        <p className="text-white/50 text-xs font-body font-semibold uppercase tracking-wider mb-3">Curriculum & Activities</p>
         <NavRow icon={BookMarked} label="Curriculum Syllabuses"
           sub="View and manage all class syllabuses" color="#6366f1" route={ROUTES.SYLLABUS} />
         <NavRow icon={ClipboardList} label="Assessments"
@@ -149,7 +149,7 @@ export default function AdminDashboard() {
         <NavRow icon={Star} label="School Clubs"
           sub="Create and manage extra-curricular clubs" color="#10b981" route={ROUTES.CLUBS} />
 
-        <p className="text-gray-400 text-xs font-body font-semibold uppercase tracking-wider mb-3 mt-6">Reports & Finance</p>
+        <p className="text-white/50 text-xs font-body font-semibold uppercase tracking-wider mb-3 mt-6">Reports & Finance</p>
         <div className="flex flex-col gap-3 mb-6">
           <NavRow icon={BarChart3} label="Financial Reports"
             sub="Reports submitted by Accounts team" color="#a855f7" route={ROUTES.ADMIN_FINANCIAL_REPORTS}
@@ -160,7 +160,7 @@ export default function AdminDashboard() {
             sub="School-wide fee and payment status" color="#10b981" route={ROUTES.FEES} />
         </div>
 
-        <p className="text-gray-400 text-xs font-body font-semibold uppercase tracking-wider mb-3">System</p>
+        <p className="text-white/50 text-xs font-body font-semibold uppercase tracking-wider mb-3">System</p>
         <NavRow icon={Settings} label="Settings"
           sub="Manage school settings and preferences" color="#94a3b8" route={ROUTES.SETTINGS} />
       </div>

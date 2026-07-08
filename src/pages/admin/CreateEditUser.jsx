@@ -71,7 +71,7 @@ function CustomDropdown({ label, value, onChange, options, placeholder, disabled
             style={{ transform: open ? 'rotate(180deg)' : 'rotate(0)' }} />
         </button>
         {open && (
-          <div className="absolute z-50 w-full mt-1 rounded-xl overflow-hidden shadow-2xl"
+          <div className="absolute z-50 w-full mt-1 rounded-xl overflow-hidden shadow-2xl surface-dark"
             style={{ background: '#1a2040', border: '1px solid rgba(255,255,255,0.15)' }}>
             {options.map(opt => (
               <button key={opt} type="button"
@@ -134,7 +134,7 @@ function ChildSearchRow({ child, allStudents, onChange, onRemove, index }) {
         </button>
       </div>
       {open && matches.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 rounded-xl overflow-hidden shadow-2xl"
+        <div className="absolute z-50 w-full mt-1 rounded-xl overflow-hidden shadow-2xl surface-dark"
           style={{ background: '#1a2040', border: '1px solid rgba(255,255,255,0.12)' }}>
           {matches.map(s => (
             <button key={s.id} type="button" onMouseDown={() => select(s)}
@@ -209,7 +209,7 @@ function BloodGroupInfoModal({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end" onClick={onClose}>
       <div
-        className="w-full rounded-t-3xl p-6 flex flex-col gap-4"
+        className="w-full rounded-t-3xl p-6 flex flex-col gap-4 surface-dark"
         style={{ background: '#141829', border: '1px solid rgba(255,255,255,0.1)' }}
         onClick={e => e.stopPropagation()}
       >
@@ -275,7 +275,7 @@ function LinkedParentModal({ parent, onClose }) {
   const rel = parent.relationshipType || 'Parent';
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end" onClick={onClose}>
-      <div className="w-full rounded-t-3xl p-6 flex flex-col gap-4"
+      <div className="w-full rounded-t-3xl p-6 flex flex-col gap-4 surface-dark"
         style={{ background: '#141829', border: '1px solid rgba(255,255,255,0.1)' }}
         onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
