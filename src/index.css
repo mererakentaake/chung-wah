@@ -186,3 +186,24 @@ body {
     placeholder-gray-400 focus:outline-none focus:border-yellow-400 focus:ring-2
     focus:ring-yellow-400/20 transition-all duration-200 font-body;
 }
+
+/* ── Light Mode text-visibility fix ──────────────────────────────────
+   Most feature pages (Profile, Settings, Assignments, Exams, etc.) were
+   originally built dark-mode-only: their body text uses Tailwind's plain
+   `text-white` / `text-white/NN` utilities, on the assumption that the
+   page background (.mesh-bg / .glass-card, driven by the --page-bg and
+   --card-bg variables above) would always be dark. Once Light Mode was
+   added, that background correctly flips to a light color, but the text
+   utilities stayed literally white — invisible on a light surface.
+
+   Rather than hand-edit every `text-white*` class across ~30 files, this
+   rule re-colors any element carrying a `text-white` class to the
+   current theme's text color whenever the app is NOT in dark mode.
+
+   A handful of surfaces (bottom-sheet modals, the onboarding/Welcome
+   screen, error screens) are deliberately dark in BOTH themes — their
+   containers carry a `.surface-dark` marker class, and are excluded here
+   so their white text is left alone. */
+:root:not(.dark) [class*="text-white"]:not(.surface-dark):not(.surface-dark *) {
+  color: var(--page-text) !important;
+}
