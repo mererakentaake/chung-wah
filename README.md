@@ -1,5 +1,5 @@
-# Chung Wah E-School 🎓
-
+# Chung Wah E-School 🎓)
+![ChungWah-logo](public/app-icon.png)
 A full-featured school management platform converted from Flutter to **React + Capacitor + Electron**, connected to **Firebase**.
 
 ![Stack](https://img.shields.io/badge/React-18-61DAFB?logo=react) ![Capacitor](https://img.shields.io/badge/Capacitor-5-119EFF?logo=capacitor) ![Electron](https://img.shields.io/badge/Electron-28-47848F?logo=electron) ![Firebase](https://img.shields.io/badge/Firebase-10-FFCA28?logo=firebase)
