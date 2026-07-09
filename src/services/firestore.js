@@ -4,8 +4,7 @@ import {
   addDoc as _addDoc, updateDoc as _updateDoc, deleteDoc as _deleteDoc, setDoc as _setDoc,
   query, where, orderBy, limit, onSnapshot, serverTimestamp
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from './firebase';
+import { db } from './firebase';
 import { cacheSet, cacheDelete } from './offlineCache';
 import { USER_TYPES } from '../utils/constants';
 
@@ -118,9 +117,7 @@ export const getAssignments = (callback) => {
 export const uploadAssignment = async (data, file) => {
   let fileUrl = null;
   if (file) {
-    const storageRef = ref(storage, `assignments/${Date.now()}_${file.name}`);
-    await uploadBytes(storageRef, file);
-    fileUrl = await getDownloadURL(storageRef);
+    fileUrl = await uploadFile(file, `assignments/${Date.now()}_${file.name}`);
   }
   await addDoc(collection(db, 'assignments'), {
     ...data, fileUrl, authorId: userId(), createdAt: serverTimestamp(),
@@ -312,14 +309,51 @@ export const getChildren = async (childIds) => {
   return results.filter(s => s.exists()).map(s => ({ id: s.id, ...s.data() }));
 };
 
-// ─── Upload file ──────────────────────────────────────────────────────────────
+// ─── Upload file (Cloudinary) ──────────────────────────────────────────────────
+// Firebase Storage now requires the project to be on the paid "Blaze" billing
+// plan (a linked credit/debit card) even to access the free-tier quota — see
+// Firebase's Storage billing changes (effective Oct 2025). To avoid requiring
+// a card, file uploads (profile photos, assignment attachments, announcement
+// images) go through Cloudinary's free tier instead, using an unsigned upload
+// preset so no server-side secret is needed from this client-only app.
+//
+// Requires these two values in .env.local (see .env.example):
+//   VITE_CLOUDINARY_CLOUD_NAME    — from Cloudinary Dashboard home page
+//   VITE_CLOUDINARY_UPLOAD_PRESET — an *unsigned* upload preset you create
+//                                   under Settings > Upload > Upload presets
+const CLOUDINARY_CLOUD_NAME    = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
 export const uploadFile = async (file, path) => {
   console.log(`[uploadFile] starting upload to ${path} (${file?.size || 0} bytes)`);
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file);
-  const url = await getDownloadURL(storageRef);
+
+  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+    throw new Error('Cloudinary is not configured — set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET in .env.local');
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  // Re-using the same path (e.g. schools/chungwah/profiles/{userId}) as the
+  // Cloudinary public_id keeps assets organized the same way the old
+  // Storage paths did, and — if the upload preset has "Overwrite" enabled —
+  // means re-uploading a profile photo replaces the old one instead of
+  // accumulating new versions.
+  formData.append('public_id', path);
+
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => null);
+    throw new Error(errBody?.error?.message || `Cloudinary upload failed (HTTP ${res.status})`);
+  }
+
+  const data = await res.json();
   console.log(`[uploadFile] finished upload to ${path}`);
-  return url;
+  return data.secure_url;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
