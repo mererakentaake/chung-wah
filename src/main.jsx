@@ -1,7 +1,4 @@
 // src/main.jsx
-import { initDebugLogger } from './services/debugLogger';
-initDebugLogger(); // must run first, before any other import can throw
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
@@ -11,7 +8,19 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import DebugLogButton from './components/ui/DebugLogButton';
+import { initDebugLogger } from './services/debugLogger';
 import './index.css';
+
+// VITE_ENABLE_DEBUG_PANEL is written into .env.local by the CI workflow
+// (true for android-build-dev.yml, false for android-build-user.yml). Vite
+// inlines this as a literal true/false at build time, so the minifier
+// dead-code-eliminates the debug logger + panel entirely from the
+// user-facing production build — it isn't just hidden, it isn't shipped.
+const DEBUG_PANEL_ENABLED = import.meta.env.VITE_ENABLE_DEBUG_PANEL === 'true';
+
+if (DEBUG_PANEL_ENABLED) {
+  initDebugLogger(); // must run before anything else that could throw
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -38,6 +47,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>
-    <DebugLogButton />
+    {DEBUG_PANEL_ENABLED && <DebugLogButton />}
   </React.StrictMode>
 );
