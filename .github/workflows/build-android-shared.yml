@@ -1,0 +1,288 @@
+name: Build Android APK (shared)
+
+# This is the ONE real build pipeline — it is never triggered directly.
+# It's called by both android-build-dev.yml (developer build, with the
+# debug log panel) and android-build-user.yml (production build, without
+# it), each passing in different `inputs` below. Any change made here
+# (new build step, SDK version bump, new secret, etc.) automatically
+# applies to both variants next time either one runs — that's the whole
+# point of splitting it this way, so the two builds can never quietly
+# drift apart from each other.
+
+on:
+  workflow_call:
+    inputs:
+      enable_debug_panel:
+        description: "Whether the built app shows the floating Debug Log panel"
+        type: boolean
+        required: true
+      app_id_suffix:
+        description: "Appended to the Capacitor appId, e.g. '.dev' — lets both variants be installed on the same device at once"
+        type: string
+        required: false
+        default: ""
+      app_name_suffix:
+        description: "Appended to the app's display name, e.g. ' (Dev)'"
+        type: string
+        required: false
+        default: ""
+      artifact_prefix:
+        description: "Filename/artifact prefix for the built APK, e.g. 'chung-wah-dev'"
+        type: string
+        required: true
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    env:
+      HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Write environment config
+        env:
+          FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.VITE_CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_UPLOAD_PRESET: ${{ secrets.VITE_CLOUDINARY_UPLOAD_PRESET }}
+        run: |
+          printf 'VITE_FIREBASE_API_KEY=%s\n' "${FIREBASE_API_KEY}" > .env.local
+          printf 'VITE_FIREBASE_AUTH_DOMAIN=%s\n' "${FIREBASE_AUTH_DOMAIN}" >> .env.local
+          printf 'VITE_FIREBASE_PROJECT_ID=%s\n' "${FIREBASE_PROJECT_ID}" >> .env.local
+          printf 'VITE_FIREBASE_STORAGE_BUCKET=%s\n' "${FIREBASE_STORAGE_BUCKET}" >> .env.local
+          printf 'VITE_FIREBASE_MESSAGING_SENDER_ID=%s\n' "${FIREBASE_MESSAGING_SENDER_ID}" >> .env.local
+          printf 'VITE_FIREBASE_APP_ID=%s\n' "${FIREBASE_APP_ID}" >> .env.local
+          printf 'VITE_FIREBASE_MEASUREMENT_ID=%s\n' "${FIREBASE_MEASUREMENT_ID}" >> .env.local
+          printf 'VITE_CLOUDINARY_CLOUD_NAME=%s\n' "${CLOUDINARY_CLOUD_NAME}" >> .env.local
+          printf 'VITE_CLOUDINARY_UPLOAD_PRESET=%s\n' "${CLOUDINARY_UPLOAD_PRESET}" >> .env.local
+          printf 'VITE_GIT_COMMIT=%s\n' "$(git rev-parse --short HEAD)" >> .env.local
+          printf 'VITE_BUILD_TIME=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .env.local
+          printf 'VITE_ENABLE_DEBUG_PANEL=%s\n' "${{ inputs.enable_debug_panel }}" >> .env.local
+          echo "--- .env.local written ---"
+          cat .env.local
+
+      # ── Build variant identity ─────────────────────────────────────────────
+      # Gives the developer build a distinct appId/name (e.g. com.meresimi.
+      # chungwah.dev / "Chung Wah (Dev)") so it installs as a SEPARATE app
+      # alongside the real user-facing one — you can have both on your phone
+      # at the same time without one overwriting the other.
+      - name: Apply build variant identity
+        run: |
+          if [ -n "${{ inputs.app_id_suffix }}" ]; then
+            sed -i "s/appId: '\([^']*\)'/appId: '\1${{ inputs.app_id_suffix }}'/" capacitor.config.ts
+          fi
+          if [ -n "${{ inputs.app_name_suffix }}" ]; then
+            sed -i "s/appName: '\([^']*\)'/appName: '\1${{ inputs.app_name_suffix }}'/" capacitor.config.ts
+          fi
+          echo "--- capacitor.config.ts ---"
+          cat capacitor.config.ts
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Add Capacitor Android platform
+        run: npx cap add android || echo "Android platform already exists"
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      # ── Native Firebase config for @capacitor/push-notifications ──────────
+      # @capacitor/push-notifications initializes the native FirebaseMessaging
+      # SDK on Android, which requires its own google-services.json (this is
+      # separate from the web VITE_FIREBASE_* keys used by the Firebase JS SDK).
+      # Without it, FirebaseApp.initializeApp() throws IllegalStateException
+      # ("Default FirebaseApp is not initialized") the moment the app calls
+      # PushNotifications.requestPermissions()/register() - i.e. right after
+      # login, before the user even answers the permission prompt - and force
+      # closes the whole app. Add a repo secret named
+      # GOOGLE_SERVICES_JSON_BASE64 (base64 of the file from
+      # Firebase Console > Project Settings > Your apps > Android app)
+      # for this step to take effect.
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+            echo "WARNING: GOOGLE_SERVICES_JSON_BASE64 secret not set - native push notifications WILL crash the app on launch/login. Add this secret to fix."
+          else
+            echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
+            echo "google-services.json written"
+          fi
+
+      - name: Add Google Services Gradle plugin
+        run: |
+          ROOT_GRADLE="android/build.gradle"
+          APP_GRADLE="android/app/build.gradle"
+          if [ -f "android/app/google-services.json" ]; then
+            if ! grep -q "com.google.gms:google-services" "$ROOT_GRADLE"; then
+              sed -i "s#classpath 'com.android.tools.build:gradle.*#&\n        classpath 'com.google.gms:google-services:4.4.2'#" "$ROOT_GRADLE"
+              echo "google-services classpath added to $ROOT_GRADLE"
+            fi
+            if ! grep -q "com.google.gms.google-services" "$APP_GRADLE"; then
+              echo "apply plugin: 'com.google.gms.google-services'" >> "$APP_GRADLE"
+              echo "google-services plugin applied in $APP_GRADLE"
+            fi
+          fi
+
+      # ── Fix "Unsafe app blocked" — bump SDK versions ──────────────────────
+      # Google Play Protect blocks apps targeting Android API < 31.
+      # Capacitor sometimes defaults to older values; force them here.
+      - name: Fix SDK target versions
+        run: |
+          VARS="android/variables.gradle"
+          if [ -f "$VARS" ]; then
+            sed -i 's/minSdkVersion\s*=\s*[0-9]*/minSdkVersion = 23/'       "$VARS"
+            sed -i 's/compileSdkVersion\s*=\s*[0-9]*/compileSdkVersion = 34/' "$VARS"
+            sed -i 's/targetSdkVersion\s*=\s*[0-9]*/targetSdkVersion = 34/'   "$VARS"
+            echo "--- variables.gradle after patch ---"
+            cat "$VARS"
+          else
+            echo "variables.gradle not found — patching app/build.gradle directly"
+            sed -i 's/targetSdk\s*[0-9]*/targetSdk 34/'   android/app/build.gradle
+            sed -i 's/compileSdk\s*[0-9]*/compileSdk 34/' android/app/build.gradle
+            sed -i 's/minSdk\s*[0-9]*/minSdk 23/'         android/app/build.gradle
+          fi
+
+      # ── App icon from school crest ────────────────────────────────────────
+      # Place your school crest as  assets/logo.png  in the repo root.
+      # ImageMagick resizes it to every required Android mipmap density.
+      - name: Install ImageMagick
+        run: sudo apt-get install -y imagemagick
+
+      - name: Generate app icons from school crest
+        run: |
+          LOGO="public/app-icon.png"
+          if [ ! -f "$LOGO" ]; then
+            echo "⚠️  assets/logo.png not found — skipping icon generation"
+            exit 0
+          fi
+          declare -A SIZES=(
+            [mipmap-mdpi]=48
+            [mipmap-hdpi]=72
+            [mipmap-xhdpi]=96
+            [mipmap-xxhdpi]=144
+            [mipmap-xxxhdpi]=192
+          )
+          for DIR in "${!SIZES[@]}"; do
+            SIZE=${SIZES[$DIR]}
+            DEST="android/app/src/main/res/$DIR"
+            mkdir -p "$DEST"
+            # Standard launcher icon
+            convert "$LOGO" -resize "${SIZE}x${SIZE}" "$DEST/ic_launcher.png"
+            # Round icon (same image — Android clips it to circle)
+            convert "$LOGO" -resize "${SIZE}x${SIZE}" "$DEST/ic_launcher_round.png"
+            # Adaptive icon foreground (with padding so the crest isn't cropped)
+            PADDED=$(echo "$SIZE * 4 / 3" | bc)
+            convert "$LOGO" -resize "${SIZE}x${SIZE}" -gravity center \
+              -background none -extent "${PADDED}x${PADDED}" \
+              "$DEST/ic_launcher_foreground.png"
+            echo "✅  $DIR → ${SIZE}px"
+          done
+
+      # ── Splash screen from school crest ───────────────────────────────────
+      # Creates a navy (#0A0F2C) 2048×2048 splash with the crest centred at 60%.
+      - name: Generate splash screen
+        run: |
+          LOGO="public/app-icon.png"
+          if [ ! -f "$LOGO" ]; then
+            echo "⚠️  assets/logo.png not found — skipping splash generation"
+            exit 0
+          fi
+          SPLASH_DIR="android/app/src/main/res/drawable"
+          mkdir -p "$SPLASH_DIR"
+
+          # Crest at ~60% of canvas width = 1229 px on a 2048 canvas
+          convert -size 2048x2048 xc:"#0A0F2C" \
+            \( "$LOGO" -resize 1229x1229 \) \
+            -gravity center -composite \
+            "$SPLASH_DIR/splash.png"
+
+          echo "✅  Splash screen generated"
+
+      # ── Gradle build ──────────────────────────────────────────────────────
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Build debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Rename debug APK
+        run: |
+          mv android/app/build/outputs/apk/debug/app-debug.apk \
+             "android/app/build/outputs/apk/debug/${{ inputs.artifact_prefix }}.apk"
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_prefix }}-debug-apk
+          path: android/app/build/outputs/apk/debug/${{ inputs.artifact_prefix }}.apk
+          retention-days: 30
+
+      # ── Release build ─────────────────────────────────────────────────────
+      - name: Decode release keystore
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode \
+            > "$GITHUB_WORKSPACE/android/app/release-key.jks"
+
+      - name: Build release APK
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          cd android
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/android/app/release-key.jks" \
+            -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD }}" \
+            -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
+            -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}" \
+            --no-daemon
+
+      - name: Rename release APK
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          mv android/app/build/outputs/apk/release/app-release.apk \
+             "android/app/build/outputs/apk/release/${{ inputs.artifact_prefix }}.apk"
+
+      - name: Upload release APK
+        if: env.HAS_KEYSTORE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_prefix }}-release-apk
+          path: android/app/build/outputs/apk/release/${{ inputs.artifact_prefix }}.apk
+          retention-days: 90

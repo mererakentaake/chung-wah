@@ -1,0 +1,23 @@
+name: Build Android APK (Developer)
+
+# Manual trigger for the DEVELOPER build: includes the floating Debug Log
+# panel (build stamp, network logging, session history, etc.) and installs
+# as a separate app (com.meresimi.chungwah.dev / "Chung Wah (Dev)") so it
+# can sit on the same device as the real user-facing app without conflict.
+#
+# All the actual build steps live in build-android-shared.yml — this file
+# only decides *which settings* that shared pipeline runs with. Don't add
+# build steps here; add them to the shared file so both variants get them.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-android-shared.yml
+    with:
+      enable_debug_panel: true
+      app_id_suffix: ".dev"
+      app_name_suffix: " (Dev)"
+      artifact_prefix: "chung-wah-dev"
+    secrets: inherit

@@ -1,0 +1,22 @@
+name: Build Android APK (Users)
+
+# Manual trigger for the USER-FACING build: the one you actually distribute
+# to parents/teachers/admins. No Debug Log panel — no floating button, no
+# console/network capture, nothing written to the device's storage for it.
+#
+# All the actual build steps live in build-android-shared.yml — this file
+# only decides *which settings* that shared pipeline runs with. Don't add
+# build steps here; add them to the shared file so both variants get them.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-android-shared.yml
+    with:
+      enable_debug_panel: false
+      app_id_suffix: ""
+      app_name_suffix: ""
+      artifact_prefix: "chung-wah"
+    secrets: inherit
