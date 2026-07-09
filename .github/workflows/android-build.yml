@@ -53,6 +53,8 @@ jobs:
           printf 'VITE_FIREBASE_MEASUREMENT_ID=%s\n' "${FIREBASE_MEASUREMENT_ID}" >> .env.local
           printf 'VITE_CLOUDINARY_CLOUD_NAME=%s\n' "${CLOUDINARY_CLOUD_NAME}" >> .env.local
           printf 'VITE_CLOUDINARY_UPLOAD_PRESET=%s\n' "${CLOUDINARY_UPLOAD_PRESET}" >> .env.local
+          printf 'VITE_GIT_COMMIT=%s\n' "$(git rev-parse --short HEAD)" >> .env.local
+          printf 'VITE_BUILD_TIME=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .env.local
           echo "--- .env.local written ---"
           cat .env.local
 
