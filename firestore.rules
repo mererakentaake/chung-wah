@@ -2,14 +2,33 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // The caller's role (ADMIN/TEACHER/STUDENT/PARENT/ACCOUNTS), stored on
+    // their own sessions/{uid} doc at login (see AuthContext.jsx).
+    function myRole() {
+      return get(/databases/$(database)/documents/sessions/$(request.auth.uid)).data.get('userType', null);
+    }
+
+    function isStaff() {
+      return myRole() == 'TEACHER' || myRole() == 'ADMIN';
+    }
+
+    // The caller's own users/{uid} profile doc.
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     // Sessions — each user reads/writes only their own
     match /sessions/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
     }
 
     // FCM tokens — each user reads/writes only their own
     match /fcmTokens/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
     }
 
     // Admins — any authenticated user can read (needed for login check).
@@ -18,25 +37,88 @@ service cloud.firestore {
     // doc) — the one exception is an existing admin updating their OWN
     // photoUrl from the Profile screen.
     match /admins/{docId} {
-      allow read: if request.auth != null;
-      allow update: if request.auth != null && request.auth.uid == docId
+      allow read: if isSignedIn();
+      allow update: if isSignedIn() && request.auth.uid == docId
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photoUrl']);
       allow create, delete: if false;
     }
 
     // Accounts users — authenticated users can read/write
     match /accountsUsers/{docId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isSignedIn();
     }
 
     // Pre-registration data
     match /Login/{type}/users/{userId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isSignedIn();
     }
 
-    // Everything else — authenticated users only
+    // ── Assignments ──────────────────────────────────────────────────────
+    // Teachers/admins: full access to every assignment.
+    // Students: read-only, and only assignments for their OWN class
+    // (standard + division, matched against their own users/{uid} doc).
+    // Parents: read-only for now — not yet scoped to their specific child's
+    // class, since that requires denormalizing the child's class onto the
+    // parent's own profile (a small follow-up change, not just a rules
+    // change). This still closes the main gap: a student could otherwise
+    // read every other class's assignments too.
+    match /assignments/{assignmentId} {
+      allow read: if isSignedIn() && (
+        isStaff() ||
+        myRole() == 'PARENT' ||
+        (myProfile().get('standard', null) == resource.data.get('standard', null)
+          && myProfile().get('division', null) == resource.data.get('division', null))
+      );
+      allow create: if isSignedIn() && isStaff()
+        && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isSignedIn()
+        && (myRole() == 'ADMIN' || resource.data.authorId == request.auth.uid);
+    }
+
+    // ── Student Reports ───────────────────────────────────────────────────
+    // The teacher who wrote a report (or any admin) can create/edit/delete
+    // it. The student it's about, or a CONFIRMED guardian of that student
+    // (checked via the guardians map on the student's own users/{uid} doc,
+    // written by respondToGuardianRequest()), can read it — not edit it.
+    match /studentReports/{reportId} {
+      allow read: if isSignedIn() && (
+        isStaff() ||
+        request.auth.uid == resource.data.studentId ||
+        get(/databases/$(database)/documents/users/$(resource.data.studentId)).data
+          .get('guardians', {}).get(request.auth.uid, '') == 'confirmed'
+      );
+      allow create: if isSignedIn() && isStaff()
+        && request.resource.data.teacherId == request.auth.uid;
+      allow update, delete: if isSignedIn()
+        && (myRole() == 'ADMIN' || resource.data.teacherId == request.auth.uid);
+    }
+
+    // ── Chat messages ──────────────────────────────────────────────────────
+    // chatId is built client-side as [uid1, uid2].sort().join('') (see
+    // getChatId() in Chat.jsx) — both participants' UIDs concatenated with
+    // no separator. Checking "does this chatId contain my uid" via a regex
+    // avoids depending on a fixed UID length.
+    match /chats/{chatId}/messages/{messageId} {
+      allow read, write: if isSignedIn() && chatId.matches('.*' + request.auth.uid + '.*');
+    }
+
+    // Everything else — authenticated users only.
+    //
+    // IMPORTANT: this deliberately excludes assignments/studentReports/chats
+    // above. Firestore combines matching rules with OR, so without this
+    // exclusion, this broad fallback would silently re-grant the exact
+    // access the three blocks above just restricted. If you add a new
+    // top-level collection that needs its own protection later, give it its
+    // own match block above this one — don't rely on this fallback to stop
+    // it.
+    //
+    // Test this in the Firebase Console's Rules Playground before
+    // deploying: simulate a STUDENT reading an assignments doc from a
+    // DIFFERENT class (should be denied) and a normal read on, e.g.,
+    // /timetable/{id} (should still be allowed).
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isSignedIn()
+        && !(request.path.size() > 3 && request.path[3] in ['assignments', 'studentReports', 'chats']);
     }
   }
 }
