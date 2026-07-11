@@ -334,8 +334,8 @@ export default function CreateEditUser() {
   const [form, setForm] = useState({
     givenName: '', familyName: '', displayName: '',
     email: '', title: '', gender: '', category: '', schoolClass: '',
-    relationshipType: 'Parent', teacherClass: '',
-    enrollNo: '', subject: '', mobileNo: '', dob: '', bloodGroup: '',
+    relationshipType: 'Parent', teacherClasses: [],
+    enrollNo: '', subjects: [''], mobileNo: '', dob: '', bloodGroup: '',
     emergencyContactName: '', emergencyContactPhone: '',
   });
 
@@ -380,9 +380,19 @@ export default function CreateEditUser() {
           const gn = rec.givenName  || (rec.displayName || '').split(' ')[0] || '';
           const fn = rec.familyName || (rec.displayName || '').split(' ').slice(1).join(' ') || '';
           const derivedSection = rec.schoolClass ? getClassSection(rec.schoolClass) : '';
+          // Prefer the new array fields (subjects / classesTaught); fall back
+          // to splitting the old comma-joined string fields for records
+          // created before multi-subject/multi-class support was added.
+          const subjectsArr = rec.subjects?.length
+            ? rec.subjects
+            : (rec.subject ? rec.subject.split(',').map(s => s.trim()).filter(Boolean) : ['']);
+          const classesArr = rec.classesTaught?.length
+            ? rec.classesTaught
+            : (rec.schoolClass ? rec.schoolClass.split(',').map(s => s.trim()).filter(Boolean) : []);
           setForm(f => ({
             ...f, ...rec, givenName: gn, familyName: fn,
-            teacherClass: rec.schoolClass || '',
+            subjects: subjectsArr.length ? subjectsArr : [''],
+            teacherClasses: classesArr,
             category: derivedSection || '',
           }));
           if (rec.children?.length) setChildren(rec.children);
@@ -417,6 +427,29 @@ export default function CreateEditUser() {
 
   const set    = k => e => { setForm(f => ({ ...f, [k]: e.target.value })); setErrors(er => ({ ...er, [k]: '' })); };
   const setVal = k => v => { setForm(f => ({ ...f, [k]: v }));              setErrors(er => ({ ...er, [k]: '' })); };
+
+  // ── Multi-subject helpers ("Add Subject" button) ─────────────────────────
+  const updateSubjectAt = (index, value) => {
+    setForm(f => {
+      const next = [...f.subjects];
+      next[index] = value;
+      return { ...f, subjects: next };
+    });
+    setErrors(er => ({ ...er, subject: '' }));
+  };
+  const addSubjectField = () => setForm(f => ({ ...f, subjects: [...f.subjects, ''] }));
+  const removeSubjectAt = (index) => setForm(f => ({ ...f, subjects: f.subjects.filter((_, i) => i !== index) }));
+
+  // ── Multi-class helpers ("Classes taught") ────────────────────────────────
+  // Picking a value from the dropdown ADDS it to the list rather than
+  // replacing the current selection, since a teacher can teach more than
+  // one class. Selected classes are shown inline, comma-separated, below.
+  const addTeacherClass = (cls) => {
+    if (!cls || form.teacherClasses.includes(cls)) return;
+    setForm(f => ({ ...f, teacherClasses: [...f.teacherClasses, cls] }));
+    setErrors(er => ({ ...er, teacherClass: '' }));
+  };
+  const removeTeacherClass = (cls) => setForm(f => ({ ...f, teacherClasses: f.teacherClasses.filter(c => c !== cls) }));
 
   const setCategory = (val) => {
     enrolGuardRef.current = false;
@@ -456,8 +489,8 @@ export default function CreateEditUser() {
       if (!form.displayName.trim()) newErrors.displayName = BLANK;
       if (!form.email.trim())       newErrors.email       = BLANK;
       if (isTeacher) {
-        if (!form.subject)          newErrors.subject     = BLANK;
-        if (!form.mobileNo.trim())  newErrors.mobileNo    = BLANK;
+        if (!form.subjects.some(s => s)) newErrors.subject = BLANK;
+        if (!form.mobileNo.trim())       newErrors.mobileNo = BLANK;
       }
       if (isParent) {
         if (!form.mobileNo.trim())  newErrors.mobileNo    = BLANK;
@@ -511,14 +544,22 @@ export default function CreateEditUser() {
         navigate(isTeacherUser ? ROUTES.HOME : ROUTES.ADMIN_DASHBOARD);
       } else {
         const validChildren = children.filter(c => c.studentId);
+        const cleanSubjects = form.subjects.filter(Boolean);
         const data = {
           displayName: form.displayName.trim(),
           email: form.email.trim(),
           title: form.title,
           isATeacher: isTeacher,
           relationshipType: isParent ? form.relationshipType : undefined,
-          subject: isTeacher ? form.subject : undefined,
-          schoolClass: isTeacher ? form.teacherClass : undefined,
+          // `subject`/`schoolClass` stay as comma-joined strings so every
+          // other screen that already reads them (Profile, ManageTeachers,
+          // Home) keeps working unchanged. `subjects`/`classesTaught` are
+          // the new array fields for anything that needs real multi-value
+          // matching later (e.g. filtering assignments by class).
+          subject:       isTeacher ? cleanSubjects.join(', ')        : undefined,
+          subjects:      isTeacher ? cleanSubjects                   : undefined,
+          schoolClass:   isTeacher ? form.teacherClasses.join(', ')  : undefined,
+          classesTaught: isTeacher ? form.teacherClasses             : undefined,
           mobileNo: form.mobileNo.trim(),
           children: isParent ? validChildren : [],
         };
@@ -759,38 +800,81 @@ export default function CreateEditUser() {
 
               {isTeacher && (
                 <>
-                  {/* Subject — dropdown with all school subjects */}
-                  <div id="field-subject">
-                    <CustomDropdown
-                      label="Subject"
-                      value={form.subject}
-                      onChange={setVal('subject')}
-                      options={SUBJECTS}
-                      placeholder="Select Subject"
-                      error={errors.subject}
-                    />
-                  </div>
-
+                  {/* Classes taught — pick one at a time; each pick ADDS to
+                      the list below instead of replacing it, since a
+                      teacher can teach more than one class. */}
                   <div id="field-teacherClass">
                     <label className="text-white/60 text-xs font-body font-medium mb-2 block">
-                      Primary Class (for class announcements)
+                      Classes taught
                     </label>
                     <select
                       className="field-dark w-full"
-                      value={form.teacherClass}
-                      onChange={e => setForm(f => ({ ...f, teacherClass: e.target.value }))}>
-                      <option value="">Select class (optional)...</option>
+                      value=""
+                      onChange={e => { addTeacherClass(e.target.value); e.target.value = ''; }}>
+                      <option value="">Select class to add...</option>
                       {Object.values(SCHOOL_STRUCTURE).map(section => (
                         <optgroup key={section.label} label={section.label}>
                           {section.classes.map(cls => (
-                            <option key={cls} value={cls}>{cls}</option>
+                            <option key={cls} value={cls} disabled={form.teacherClasses.includes(cls)}>
+                              {cls}
+                            </option>
                           ))}
                         </optgroup>
                       ))}
                     </select>
+                    {form.teacherClasses.length > 0 && (
+                      <p className="text-white/70 text-xs font-body mt-2 leading-relaxed">
+                        {form.teacherClasses.map((cls, i) => (
+                          <span key={cls}>
+                            {i > 0 && ', '}
+                            {cls}
+                            <button type="button" onClick={() => removeTeacherClass(cls)}
+                              className="text-red-400/70 hover:text-red-400 ml-0.5" aria-label={`Remove ${cls}`}>
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </p>
+                    )}
                     <p className="text-white/30 text-[11px] font-body mt-1.5">
-                      Used to determine which class this teacher posts announcements and attendance for.
+                      Used to determine which classes this teacher posts announcements and attendance for.
                     </p>
+                  </div>
+
+                  {/* Add Subject — sits under the right side of Classes
+                      taught, and adds another Subject dropdown below since
+                      some teachers teach more than one subject. */}
+                  <div className="flex justify-end">
+                    <button type="button" onClick={addSubjectField}
+                      className="flex items-center gap-1.5 text-xs font-display font-semibold px-3 py-1.5 rounded-xl"
+                      style={{ background: 'rgba(232,69,69,0.12)', color: '#E84545', border: '1px solid rgba(232,69,69,0.25)' }}>
+                      <Plus size={14} /> Add Subject
+                    </button>
+                  </div>
+
+                  {/* Subject(s) — dropdown(s) with all school subjects */}
+                  <div id="field-subject" className="flex flex-col gap-3">
+                    {form.subjects.map((subj, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <div className="flex-1">
+                          <CustomDropdown
+                            label={i === 0 ? 'Subject' : `Subject ${i + 1}`}
+                            value={subj}
+                            onChange={v => updateSubjectAt(i, v)}
+                            options={SUBJECTS}
+                            placeholder="Select Subject"
+                            error={i === 0 ? errors.subject : undefined}
+                          />
+                        </div>
+                        {form.subjects.length > 1 && (
+                          <button type="button" onClick={() => removeSubjectAt(i)}
+                            className="w-9 h-9 mt-7 rounded-xl bg-white/8 flex items-center justify-center shrink-0"
+                            aria-label="Remove subject">
+                            <X size={15} className="text-white/60" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
 
                   <div id="field-mobileNo">
