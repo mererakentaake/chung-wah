@@ -101,6 +101,24 @@ If you ever see an upload fail with `Storage upload timed out after 25000ms`, th
 
 ---
 
+## 🔑 Google Sign-In
+
+Every login tab (Student/Parent/Teacher/Admin/Accounts) also offers **"Continue with Google"**, so people don't have to type their email each time. This does **not** loosen the app's closed/invite-only model — signing in with Google still goes through the exact same pre-registration check as the email/password flow (matching the Google account's email against `Login/{type}/users`, `admins`, or `accountsUsers`, depending on the selected tab). If the email isn't pre-registered, it's rejected with the same message either way.
+
+Implementation: `@codetrix-studio/capacitor-google-auth` (native Google Sign-In, not a WebView popup — Google blocks OAuth popups inside embedded WebViews, which is what a plain Firebase `signInWithPopup()` would try to use). The native plugin returns a Google ID token, exchanged for a Firebase Auth credential via `GoogleAuthProvider.credential()` — see `loginWithGoogle()` in `src/services/auth.js`.
+
+**One-time setup required** (only needs doing once per Firebase project, not per build):
+
+1. **Firebase Console** → Authentication → Sign-in method → enable **Google**.
+2. **Firebase Console** → Project Settings → Your apps → for **each** registered Android app (`com.meresimi.chungwah` and `com.meresimi.chungwah.dev`) → **Add fingerprint** → paste in that app's SHA-1.
+   - Get the SHA-1s from the build logs: every workflow run prints both the debug keystore's SHA-1 (step "Print debug keystore SHA-1") and, if `KEYSTORE_BASE64` is set, the release keystore's too.
+   - The debug keystore is cached across runs (`debug-keystore-v1` in Actions cache) specifically so this SHA-1 doesn't change on every rebuild — you only need to add it once.
+3. **Google Cloud Console** → APIs & Services → Credentials (same project as Firebase) → under "OAuth 2.0 Client IDs", find the one with type **Web application** (Firebase auto-creates this when you enable Google Sign-In in step 1) → copy its Client ID.
+4. Add that value as the `VITE_GOOGLE_WEB_CLIENT_ID` GitHub secret (see table below). Do **not** use an Android-type client ID here — it must be the Web application one.
+5. Re-run whichever build(s) you need.
+
+---
+
 ## 📱 Building the Android APK
 
 ### Automated via GitHub Actions
@@ -130,7 +148,8 @@ Only change build steps in `build-android-shared.yml` — edits there apply to b
 | `VITE_FIREBASE_MEASUREMENT_ID` | Firebase Analytics measurement ID |
 | `VITE_CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name (Dashboard home page) |
 | `VITE_CLOUDINARY_UPLOAD_PRESET` | Your **unsigned** Cloudinary upload preset name |
-| `GOOGLE_SERVICES_JSON_BASE64` | Base64 of `google-services.json` (Firebase Console → Your apps → Android app) — required for native push notifications to not crash the app on login |
+| `VITE_GOOGLE_WEB_CLIENT_ID` | The **Web application**-type OAuth Client ID for "Sign in with Google" — see [Google Sign-In](#-google-sign-in) below |
+| `GOOGLE_SERVICES_JSON_BASE64` | Base64 of `google-services.json` (Firebase Console → Your apps → Android app) — required for native push notifications to not crash the app on login, and must include an entry for **every** registered package name (`com.meresimi.chungwah` and `com.meresimi.chungwah.dev`) |
 | `KEYSTORE_BASE64` | Base64-encoded `.jks` keystore (enables the signed release-APK job) |
 | `KEYSTORE_PASSWORD` | Keystore password |
 | `KEY_ALIAS` | Key alias |

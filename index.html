@@ -7,6 +7,12 @@
     <meta name="theme-color" content="#0A0F2C" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- Only used by @codetrix-studio/capacitor-google-auth's web fallback
+         (i.e. testing in a plain browser via `npm run dev`) — the actual
+         Android build reads serverClientId from capacitor.config.ts instead.
+         %VITE_GOOGLE_WEB_CLIENT_ID% is filled in by Vite from .env.local at
+         build time. -->
+    <meta name="google-signin-client_id" content="%VITE_GOOGLE_WEB_CLIENT_ID%" />
     <title>Chung Wah E-School</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
