@@ -5,7 +5,10 @@ import {
   signOut,
   sendPasswordResetEmail,
   onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithCredential,
 } from 'firebase/auth';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import {
   doc, getDoc, getDocs, collection, query, where, setDoc, limit
 } from 'firebase/firestore';
@@ -90,6 +93,30 @@ export const loginUser = async ({ email, password, userType }) => {
   return { user: credential.user, userType: resolvedType, userData: checkResult.userData };
 };
 
+// Copies the relevant fields from a pre-registration record (Login/{type}/
+// users/{docId}) onto the real users/{docId} profile doc. Used by both
+// registerUser() (first-time email/password signup) and loginWithGoogle()
+// (first-time Google sign-in), since either can be how a pre-registered
+// account is "activated" for the first time.
+const copyPreRegistrationProfile = async (docId, email, pre) => {
+  try {
+    const p = { email: email.toLowerCase().trim() };
+    if (pre.displayName)            p.displayName            = pre.displayName;
+    if (pre.enrollNo)               p.enrollNo               = pre.enrollNo;
+    if (pre.mobileNo)               p.mobileNo               = pre.mobileNo;
+    if (pre.dob)                    p.dob                    = pre.dob;
+    if (pre.bloodGroup)             p.bloodGroup             = pre.bloodGroup;
+    if (pre.gender)                 p.gender                 = pre.gender;
+    if (pre.schoolClass)            p.schoolClass            = pre.schoolClass;
+    if (pre.emergencyContactName)   p.emergencyContactName   = pre.emergencyContactName;
+    if (pre.emergencyContactPhone)  p.emergencyContactPhone  = pre.emergencyContactPhone;
+    if (pre.subject)                p.subject                = pre.subject;
+    if (pre.subjects)                p.subjects              = pre.subjects;
+    if (pre.classesTaught)           p.classesTaught         = pre.classesTaught;
+    await setDoc(doc(db, 'users', docId), p, { merge: true });
+  } catch (_) {}
+};
+
 export const registerUser = async ({ email, password, userType }) => {
   const checkResult = await checkSchoolAndUser({ email, userType });
   if (!checkResult.success) throw new Error('USER_NOT_PREREGISTERED');
@@ -109,23 +136,7 @@ export const registerUser = async ({ email, password, userType }) => {
   const docId = checkResult.userData.id || checkResult.docId;
   await saveSession(credential.user.uid, { userType: resolvedType, userId: docId });
   localStorage.setItem('userId', docId);
-
-  // Copy pre-registration profile to users/{docId}
-  try {
-    const pre = checkResult.userData;
-    const p = { email: email.toLowerCase().trim() };
-    if (pre.displayName)            p.displayName            = pre.displayName;
-    if (pre.enrollNo)               p.enrollNo               = pre.enrollNo;
-    if (pre.mobileNo)               p.mobileNo               = pre.mobileNo;
-    if (pre.dob)                    p.dob                    = pre.dob;
-    if (pre.bloodGroup)             p.bloodGroup             = pre.bloodGroup;
-    if (pre.gender)                 p.gender                 = pre.gender;
-    if (pre.schoolClass)            p.schoolClass            = pre.schoolClass;
-    if (pre.emergencyContactName)   p.emergencyContactName   = pre.emergencyContactName;
-    if (pre.emergencyContactPhone)  p.emergencyContactPhone  = pre.emergencyContactPhone;
-    if (pre.subject)                p.subject                = pre.subject;
-    await setDoc(doc(db, 'users', docId), p, { merge: true });
-  } catch (_) {}
+  await copyPreRegistrationProfile(docId, email, checkResult.userData);
   return credential.user;
 };
 
@@ -206,7 +217,96 @@ export const registerAccounts = async ({ email, password }) => {
   return credential.user;
 };
 
-export const logoutUser = async () => {
+// ─── Google Sign-In ─────────────────────────────────────────────────────────
+// Uses native Google Sign-In (via @codetrix-studio/capacitor-google-auth,
+// not a WebView popup — Google blocks OAuth popups inside embedded WebViews,
+// which is what a plain Firebase signInWithPopup() would try to use here).
+// The native sign-in returns a Google ID token, which is exchanged for a
+// Firebase Auth credential the same way any other Firebase sign-in method
+// would be.
+//
+// IMPORTANT: signing in with Google does NOT bypass this app's closed/
+// invite-only model. After Firebase Auth accepts the Google credential, we
+// run the exact same pre-registration lookup used by loginUser/loginAdmin/
+// loginAccounts (Login/{type}/users, admins, or accountsUsers, matched by
+// email). If the signed-in Google account's email isn't pre-registered for
+// the selected tab, we sign back out and throw the same errors Login.jsx
+// already knows how to display — nothing new to handle there.
+let googleAuthInitialized = false;
+const ensureGoogleAuthInitialized = () => {
+  if (googleAuthInitialized) return;
+  GoogleAuth.initialize();
+  googleAuthInitialized = true;
+};
+
+export const loginWithGoogle = async ({ userType }) => {
+  ensureGoogleAuthInitialized();
+  const googleUser = await GoogleAuth.signIn();
+  const idToken = googleUser?.authentication?.idToken;
+  if (!idToken) throw new Error('GOOGLE_SIGNIN_CANCELLED');
+
+  const firebaseCredential = GoogleAuthProvider.credential(idToken);
+  const { user } = await signInWithCredential(auth, firebaseCredential);
+  const email = (user.email || '').toLowerCase().trim();
+
+  try {
+    if (userType === USER_TYPES.ADMIN) {
+      const byUid = await getDoc(doc(db, 'admins', user.uid));
+      let isAdminUser = byUid.exists();
+      if (!isAdminUser) {
+        const byEmail = await getDocs(query(
+          collection(db, 'admins'), where('email', '==', email), limit(1)
+        ));
+        isAdminUser = !byEmail.empty;
+      }
+      if (!isAdminUser) throw new Error('NOT_AN_ADMIN');
+      await saveSession(user.uid, { userType: USER_TYPES.ADMIN, userId: user.uid });
+      localStorage.setItem('userId', user.uid);
+      return { user, userType: USER_TYPES.ADMIN };
+    }
+
+    if (userType === USER_TYPES.ACCOUNTS) {
+      const byUid = await getDoc(doc(db, 'accountsUsers', user.uid));
+      let isAccountsUser = byUid.exists();
+      if (!isAccountsUser) {
+        const byEmail = await getDocs(query(
+          collection(db, 'accountsUsers'), where('email', '==', email), limit(1)
+        ));
+        isAccountsUser = !byEmail.empty;
+      }
+      if (!isAccountsUser) throw new Error('NOT_AN_ACCOUNTANT');
+      await saveSession(user.uid, { userType: USER_TYPES.ACCOUNTS, userId: user.uid });
+      localStorage.setItem('userId', user.uid);
+      return { user, userType: USER_TYPES.ACCOUNTS };
+    }
+
+    // Student / Teacher / Parent
+    const loginType = userType === USER_TYPES.PARENT ? USER_TYPES.TEACHER : userType;
+    const checkResult = await checkSchoolAndUser({ email, userType: loginType });
+    if (!checkResult.success) throw new Error(checkResult.error);
+
+    if (loginType === USER_TYPES.STUDENT) {
+      const sc = checkResult.userData.schoolClass || '';
+      if (NO_STUDENT_LOGIN_CLASSES.includes(sc)) throw new Error('TOO_YOUNG');
+      if (PARENT_PERMISSION_CLASSES.includes(sc) && !checkResult.userData.allowAppAccess)
+        throw new Error('NEEDS_PARENT_PERMISSION');
+    }
+
+    let resolvedType = loginType;
+    if (loginType === USER_TYPES.TEACHER)
+      resolvedType = checkResult.userData.isATeacher ? USER_TYPES.TEACHER : USER_TYPES.PARENT;
+    const docId = checkResult.userData.id || checkResult.docId;
+    await saveSession(user.uid, { userType: resolvedType, userId: docId });
+    localStorage.setItem('userId', docId);
+    // First-ever sign-in for this account (mirrors registerUser) — harmless
+    // no-op merge if the profile doc already exists from a prior sign-in.
+    await copyPreRegistrationProfile(docId, email, checkResult.userData);
+    return { user, userType: resolvedType, userData: checkResult.userData };
+  } catch (err) {
+    await signOut(auth);
+    throw err;
+  }
+};
   const uid = auth.currentUser?.uid;
   if (uid) await clearSession(uid);
   await signOut(auth);
