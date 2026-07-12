@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, AlertCircle, ShieldCheck, Calculator } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { loginUser, registerUser, loginAdmin, loginAccounts, registerAccounts } from '../../services/auth';
+import { loginUser, registerUser, loginAdmin, loginAccounts, registerAccounts, loginWithGoogle } from '../../services/auth';
 import { useAuth } from '../../context/AuthContext';
 import { USER_TYPES, ROUTES } from '../../utils/constants';
 
@@ -40,6 +40,7 @@ export default function Login() {
   const [userType, setUserType] = useState(USER_TYPES.STUDENT);
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading]   = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError]       = useState('');
   const [form, setForm]         = useState({ email: '', password: '', confirmPassword: '' });
 
@@ -98,6 +99,37 @@ export default function Login() {
       setError(ERROR_MSGS[err.message] || ERROR_MSGS[err.code] || `Error: ${err.code || err.message}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Google Sign-In respects the exact same pre-registration gate as the
+  // email/password flow above (see loginWithGoogle() in services/auth.js) —
+  // it's just a different way to prove "I own this email", not a way around
+  // needing that email pre-registered by the admin.
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setGoogleLoading(true);
+    try {
+      const loginType = isAdmin ? USER_TYPES.ADMIN
+        : isAccounts ? USER_TYPES.ACCOUNTS
+        : resolveLoginType(userType);
+      const { user, userType: resolvedType } = await loginWithGoogle({ userType: loginType });
+      setAuthState(resolvedType, user.uid);
+      toast.success('Welcome!');
+      navigate(
+        resolvedType === USER_TYPES.ADMIN ? ROUTES.ADMIN_DASHBOARD
+          : resolvedType === USER_TYPES.ACCOUNTS ? ROUTES.ACCOUNTS_DASHBOARD
+          : ROUTES.HOME,
+        { replace: true }
+      );
+    } catch (err) {
+      // Cancelling the Google account picker isn't a real error — just go
+      // back to the form quietly instead of showing a scary red banner.
+      if (err.message !== 'GOOGLE_SIGNIN_CANCELLED' && err.code !== '12501') {
+        setError(ERROR_MSGS[err.message] || ERROR_MSGS[err.code] || `Error: ${err.code || err.message}`);
+      }
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -186,7 +218,7 @@ export default function Login() {
             <Link to="/forgot-password" className="text-xs font-body hover:underline" style={{ color: activeColor }}>Forgot password?</Link>
           </div>
 
-          <button onClick={submit} disabled={loading}
+          <button onClick={submit} disabled={loading || googleLoading}
             className="w-full h-14 rounded-2xl font-display font-bold text-base flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
             style={{
               background: isAdmin ? 'linear-gradient(135deg,#a855f7,#7c3aed)'
@@ -198,6 +230,29 @@ export default function Login() {
               ? <div className="w-5 h-5 border-2 border-current opacity-40 border-t-current rounded-full animate-spin" />
               : isAdmin ? 'Sign In as Admin' : isAccounts ? (mode === 'login' ? 'Sign In to Accounts' : 'Activate Account')
               : mode === 'login' ? 'Sign In' : 'Create Account'}
+          </button>
+
+          <div className="flex items-center gap-3 my-1">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-gray-400 text-xs font-body">or</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+
+          <button onClick={handleGoogleSignIn} disabled={loading || googleLoading}
+            className="w-full h-14 rounded-2xl font-display font-semibold text-sm flex items-center justify-center gap-2.5 disabled:opacity-50 transition-all bg-white border border-gray-200 text-gray-700 hover:bg-gray-50">
+            {googleLoading
+              ? <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-500 rounded-full animate-spin" />
+              : (
+                <>
+                  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                    <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.09-1.8 2.73v2.27h2.92c1.7-1.57 2.68-3.88 2.68-6.64z"/>
+                    <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.27c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.34C2.44 15.98 5.48 18 9 18z"/>
+                    <path fill="#FBBC05" d="M3.97 10.71A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.71V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.34z"/>
+                    <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.95l3.01 2.34C4.68 5.16 6.66 3.58 9 3.58z"/>
+                  </svg>
+                  Continue with Google
+                </>
+              )}
           </button>
 
           {!isAdmin && (
