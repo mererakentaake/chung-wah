@@ -57,6 +57,21 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      # ── Stable debug-signing keystore ──────────────────────────────────────
+      # Android auto-generates ~/.android/debug.keystore the first time any
+      # debug build runs, with a FRESH random key each time — which is fine
+      # normally, but Google Sign-In validates the calling app against a
+      # SHA-1 fingerprint registered in Firebase/Google Cloud Console. A new
+      # random fingerprint every run means Google Sign-In would randomly
+      # break on every rebuild. Caching this file means it's generated once,
+      # then reused on every future run, so its SHA-1 (printed further below)
+      # stays valid once you've added it to Firebase.
+      - name: Cache debug keystore
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: debug-keystore-v1
+
       - name: Install dependencies
         run: npm install
 
@@ -71,6 +86,7 @@ jobs:
           FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
           CLOUDINARY_CLOUD_NAME: ${{ secrets.VITE_CLOUDINARY_CLOUD_NAME }}
           CLOUDINARY_UPLOAD_PRESET: ${{ secrets.VITE_CLOUDINARY_UPLOAD_PRESET }}
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
         run: |
           printf 'VITE_FIREBASE_API_KEY=%s\n' "${FIREBASE_API_KEY}" > .env.local
           printf 'VITE_FIREBASE_AUTH_DOMAIN=%s\n' "${FIREBASE_AUTH_DOMAIN}" >> .env.local
@@ -81,11 +97,17 @@ jobs:
           printf 'VITE_FIREBASE_MEASUREMENT_ID=%s\n' "${FIREBASE_MEASUREMENT_ID}" >> .env.local
           printf 'VITE_CLOUDINARY_CLOUD_NAME=%s\n' "${CLOUDINARY_CLOUD_NAME}" >> .env.local
           printf 'VITE_CLOUDINARY_UPLOAD_PRESET=%s\n' "${CLOUDINARY_UPLOAD_PRESET}" >> .env.local
+          printf 'VITE_GOOGLE_WEB_CLIENT_ID=%s\n' "${GOOGLE_WEB_CLIENT_ID}" >> .env.local
           printf 'VITE_GIT_COMMIT=%s\n' "$(git rev-parse --short HEAD)" >> .env.local
           printf 'VITE_BUILD_TIME=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .env.local
           printf 'VITE_ENABLE_DEBUG_PANEL=%s\n' "${{ inputs.enable_debug_panel }}" >> .env.local
           echo "--- .env.local written ---"
           cat .env.local
+          # capacitor.config.ts is evaluated directly by the Capacitor CLI
+          # (not by Vite), so it can't read .env.local — it reads plain
+          # process.env instead. Exporting to GITHUB_ENV makes this available
+          # as a real environment variable in the later "Sync Capacitor" step.
+          echo "VITE_GOOGLE_WEB_CLIENT_ID=${GOOGLE_WEB_CLIENT_ID}" >> "$GITHUB_ENV"
 
       # ── Build variant identity ─────────────────────────────────────────────
       # Gives the developer build a distinct appId/name (e.g. com.meresimi.
@@ -243,6 +265,16 @@ jobs:
           cd android
           ./gradlew assembleDebug --no-daemon
 
+      - name: Print debug keystore SHA-1 (for Google Sign-In setup)
+        run: |
+          echo "Copy the SHA1 line below into Firebase Console > Project Settings"
+          echo "> this Android app > 'Add fingerprint' — do this ONCE per app"
+          echo "(com.meresimi.chungwah and com.meresimi.chungwah.dev), not per build."
+          echo "---"
+          keytool -list -v -keystore ~/.android/debug.keystore \
+            -alias androiddebugkey -storepass android -keypass android \
+            | grep -A1 "SHA1:"
+
       - name: Rename debug APK
         run: |
           mv android/app/build/outputs/apk/debug/app-debug.apk \
@@ -261,6 +293,19 @@ jobs:
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode \
             > "$GITHUB_WORKSPACE/android/app/release-key.jks"
+
+      - name: Print release keystore SHA-1 (for Google Sign-In setup)
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          echo "Same idea as the debug one above, but for the signed release"
+          echo "build — add this SHA1 to Firebase too if you distribute a"
+          echo "signed release build and want Google Sign-In to work there."
+          echo "---"
+          keytool -list -v -keystore "$GITHUB_WORKSPACE/android/app/release-key.jks" \
+            -alias "${{ secrets.KEY_ALIAS }}" \
+            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            -keypass "${{ secrets.KEY_PASSWORD }}" \
+            | grep -A1 "SHA1:"
 
       - name: Build release APK
         if: env.HAS_KEYSTORE == 'true'
