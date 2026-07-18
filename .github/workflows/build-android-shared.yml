@@ -73,7 +73,14 @@ jobs:
           key: debug-keystore-v1
 
       - name: Install dependencies
-        run: npm install
+        # --legacy-peer-deps: some Capacitor community plugins (e.g. Google
+        # Auth) publish peer-dependency metadata that lags behind their
+        # actual Capacitor-version compatibility — the code works fine on a
+        # newer Capacitor major version well before the package.json peer
+        # dependency range is updated to say so. Without this flag, npm
+        # hard-fails the whole build on that mismatch instead of just
+        # warning about it.
+        run: npm install --legacy-peer-deps
 
       - name: Write environment config
         env:
@@ -267,13 +274,33 @@ jobs:
 
       - name: Print debug keystore SHA-1 (for Google Sign-In setup)
         run: |
-          echo "Copy the SHA1 line below into Firebase Console > Project Settings"
-          echo "> this Android app > 'Add fingerprint' — do this ONCE per app"
-          echo "(com.meresimi.chungwah and com.meresimi.chungwah.dev), not per build."
+          echo "Copy the SHA1 fingerprint below into Firebase Console >"
+          echo "Project Settings > this Android app > 'Add fingerprint' —"
+          echo "do this ONCE per app (com.meresimi.chungwah and"
+          echo "com.meresimi.chungwah.dev), not on every build."
           echo "---"
-          keytool -list -v -keystore ~/.android/debug.keystore \
-            -alias androiddebugkey -storepass android -keypass android \
-            | grep -A1 "SHA1:"
+          if [ ! -f ~/.android/debug.keystore ]; then
+            echo "debug.keystore not found at ~/.android/debug.keystore — this"
+            echo "shouldn't happen after 'Build debug APK' succeeded. Skipping;"
+            echo "everything else in this build is unaffected."
+          else
+            FULL_OUTPUT=$(keytool -list -v -keystore ~/.android/debug.keystore \
+              -alias androiddebugkey -storepass android -keypass android 2>&1) || true
+            # Case/label format can differ slightly across keytool/JDK
+            # versions (e.g. "SHA1:" vs "SHA1 " vs "SHA-1:"), so match loosely
+            # rather than one exact string.
+            MATCH=$(echo "$FULL_OUTPUT" | grep -i "sha1" || true)
+            if [ -n "$MATCH" ]; then
+              echo "$MATCH"
+            else
+              echo "Couldn't isolate the SHA1 line automatically — here's the"
+              echo "full certificate output, the fingerprint is in there:"
+              echo "$FULL_OUTPUT"
+            fi
+          fi
+        # Never fail the whole workflow over this step — it's informational
+        # only and has no effect on the APK that gets built and uploaded.
+        continue-on-error: true
 
       - name: Rename debug APK
         run: |
@@ -301,11 +328,21 @@ jobs:
           echo "build — add this SHA1 to Firebase too if you distribute a"
           echo "signed release build and want Google Sign-In to work there."
           echo "---"
-          keytool -list -v -keystore "$GITHUB_WORKSPACE/android/app/release-key.jks" \
+          FULL_OUTPUT=$(keytool -list -v -keystore "$GITHUB_WORKSPACE/android/app/release-key.jks" \
             -alias "${{ secrets.KEY_ALIAS }}" \
             -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
-            -keypass "${{ secrets.KEY_PASSWORD }}" \
-            | grep -A1 "SHA1:"
+            -keypass "${{ secrets.KEY_PASSWORD }}" 2>&1) || true
+          MATCH=$(echo "$FULL_OUTPUT" | grep -i "sha1" || true)
+          if [ -n "$MATCH" ]; then
+            echo "$MATCH"
+          else
+            echo "Couldn't isolate the SHA1 line automatically — here's the"
+            echo "full certificate output, the fingerprint is in there:"
+            echo "$FULL_OUTPUT"
+          fi
+        # Never fail the whole workflow over this step — it's informational
+        # only and has no effect on the APK that gets built and uploaded.
+        continue-on-error: true
 
       - name: Build release APK
         if: env.HAS_KEYSTORE == 'true'
