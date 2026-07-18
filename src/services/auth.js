@@ -7,6 +7,8 @@ import {
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithCredential,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
 } from 'firebase/auth';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import {
@@ -217,6 +219,94 @@ export const registerAccounts = async ({ email, password }) => {
   return credential.user;
 };
 
+// ─── Phone Number Sign-In ───────────────────────────────────────────────────
+// Same idea as Google Sign-In above: an alternative way to prove "this is my
+// account" without typing an email, gated by the exact same pre-registration
+// check as every other login method. Here the match is on mobileNo instead
+// of email.
+//
+// Phone numbers in pre-registration records were typed freely by admins
+// (e.g. "+677 12 34567" vs "67712345678"), so comparing them to the E.164
+// number Firebase returns after OTP verification (e.g. "+67712345678") needs
+// the punctuation/spacing stripped from BOTH sides first — an exact
+// Firestore `where` match would silently fail to find real matches that are
+// just formatted differently.
+const digitsOnly = (s) => (s || '').replace(/[^\d]/g, '');
+
+let recaptchaVerifier = null;
+
+// Call once, right before sendPhoneOtp, passing the id of an empty <div> in
+// the DOM (e.g. <div id="recaptcha-container" />) — Firebase attaches its
+// (invisible) verification challenge to that element.
+export const initPhoneRecaptcha = (containerId) => {
+  if (recaptchaVerifier) return recaptchaVerifier;
+  recaptchaVerifier = new RecaptchaVerifier(auth, containerId, { size: 'invisible' });
+  return recaptchaVerifier;
+};
+
+// Sends the OTP SMS. Returns a Firebase ConfirmationResult — pass it to
+// confirmPhoneOtp() along with the code the person receives.
+export const sendPhoneOtp = async (phoneNumber, containerId) => {
+  const verifier = initPhoneRecaptcha(containerId);
+  return signInWithPhoneNumber(auth, phoneNumber, verifier);
+};
+
+const findByPhone = async (collectionPath, phone) => {
+  const target = digitsOnly(phone);
+  const snap = await getDocs(collection(db, ...collectionPath));
+  const match = snap.docs.find(d => digitsOnly(d.data().mobileNo) === target && target.length >= 7);
+  return match ? { id: match.id, ...match.data() } : null;
+};
+
+export const confirmPhoneOtp = async (confirmationResult, code, userType) => {
+  const { user } = await confirmationResult.confirm(code);
+  const phone = user.phoneNumber || '';
+
+  try {
+    if (userType === USER_TYPES.ADMIN) {
+      const rec = await findByPhone(['admins'], phone);
+      if (!rec) throw new Error('NOT_AN_ADMIN');
+      await saveSession(user.uid, { userType: USER_TYPES.ADMIN, userId: rec.id });
+      localStorage.setItem('userId', rec.id);
+      return { user, userType: USER_TYPES.ADMIN };
+    }
+
+    if (userType === USER_TYPES.ACCOUNTS) {
+      const rec = await findByPhone(['accountsUsers'], phone);
+      if (!rec) throw new Error('NOT_AN_ACCOUNTANT');
+      await saveSession(user.uid, { userType: USER_TYPES.ACCOUNTS, userId: rec.id });
+      localStorage.setItem('userId', rec.id);
+      return { user, userType: USER_TYPES.ACCOUNTS };
+    }
+
+    // Student / Teacher / Parent
+    const loginType = userType === USER_TYPES.PARENT ? USER_TYPES.TEACHER : userType;
+    const collectionPath = loginType === USER_TYPES.STUDENT
+      ? ['Login', 'Student', 'users']
+      : ['Login', 'Parent-Teacher', 'users'];
+    const rec = await findByPhone(collectionPath, phone);
+    if (!rec) throw new Error('USER_NOT_FOUND');
+
+    if (loginType === USER_TYPES.STUDENT) {
+      const sc = rec.schoolClass || '';
+      if (NO_STUDENT_LOGIN_CLASSES.includes(sc)) throw new Error('TOO_YOUNG');
+      if (PARENT_PERMISSION_CLASSES.includes(sc) && !rec.allowAppAccess)
+        throw new Error('NEEDS_PARENT_PERMISSION');
+    }
+
+    let resolvedType = loginType;
+    if (loginType === USER_TYPES.TEACHER)
+      resolvedType = rec.isATeacher ? USER_TYPES.TEACHER : USER_TYPES.PARENT;
+    await saveSession(user.uid, { userType: resolvedType, userId: rec.id });
+    localStorage.setItem('userId', rec.id);
+    if (rec.email) await copyPreRegistrationProfile(rec.id, rec.email, rec);
+    return { user, userType: resolvedType, userData: rec };
+  } catch (err) {
+    await signOut(auth);
+    throw err;
+  }
+};
+
 // ─── Google Sign-In ─────────────────────────────────────────────────────────
 // Uses native Google Sign-In (via @codetrix-studio/capacitor-google-auth,
 // not a WebView popup — Google blocks OAuth popups inside embedded WebViews,
@@ -307,6 +397,8 @@ export const loginWithGoogle = async ({ userType }) => {
     throw err;
   }
 };
+
+export const logoutUser = async () => {
   const uid = auth.currentUser?.uid;
   if (uid) await clearSession(uid);
   await signOut(auth);
